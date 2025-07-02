@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: embedded_postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: embedded
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: embedded_dev
+    volumes:
+      - embedded_db_data:/var/lib/postgresql/data
+
+volumes:
+  embedded_db_data:

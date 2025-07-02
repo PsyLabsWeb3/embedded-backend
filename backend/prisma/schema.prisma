@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Wallet {
+  id        Int      @id @default(autoincrement())
+  address   String   @unique
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  matchesA      Match[]        @relation("WalletA")
+  matchesB      Match[]        @relation("WalletB")
+  matchesWinner Match[]        @relation("WinnerWallet")
+  seasonResults SeasonResult[] @relation("SeasonWallet")
+}
+
+model Match {
+  id           Int     @id @default(autoincrement())
+  matchId      String  @unique
+  walletA      Wallet  @relation("WalletA", fields: [walletAId], references: [id])
+  walletAId    Int
+  walletB      Wallet? @relation("WalletB", fields: [walletBId], references: [id])
+  walletBId    Int?
+  winnerWallet Wallet? @relation("WinnerWallet", fields: [winnerId], references: [id])
+  winnerId     Int?
+
+  txSigA String
+  txSigB String?
+
+  status    MatchStatus
+  createdAt DateTime    @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+}
+
+enum MatchStatus {
+  WAITING
+  IN_PROGRESS
+  FINISHED
+  CANCELLED
+}
+
+model SeasonResult {
+  id        Int      @id @default(autoincrement())
+  season    Int
+  wallet    Wallet   @relation("SeasonWallet", fields: [walletId], references: [id])
+  walletId  Int
+  points    Int
+  timestamp DateTime @default(now())
+
+  @@unique([season, walletId])
+}
