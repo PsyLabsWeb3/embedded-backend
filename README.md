@@ -82,20 +82,9 @@ npm run dev
 
 Accessible at: http://localhost:3000/api/
 
-### 5. Compile the EmbeddedAPI Unity DLL
+### 5. Importing and using the EmbeddedAPI from Unity
 
-From the root of the project:
-
-```bash
-cd EmbeddedAPI/
-dotnet build -c Release
-```
-
-Output DLL: EmbeddedAPI/bin/Release/net471/EmbeddedAPI.dll
-
-### 6. Usage from Unity
-
-Copy EmbeddedAPI.cs into your Unity project:
+Copy EmbeddedAPI/EmbeddedAPI.cs into your Unity project:
 
 ```bash
 Assets/Plugins/EmbeddedAPI.cs

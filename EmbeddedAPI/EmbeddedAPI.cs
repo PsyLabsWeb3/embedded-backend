@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Net.Http;
 using System.Text;
-using Newtonsoft.Json;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
+using UnityEngine;
 
 namespace EmbeddedAPI
 {
@@ -42,7 +42,7 @@ namespace EmbeddedAPI
                 txSignature
             };
 
-            var body = JsonConvert.SerializeObject(payload);
+            var body = JsonUtility.ToJson(payload);
             var content = new StringContent(body, Encoding.UTF8, "application/json");
 
             var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/registerPlayer")
@@ -58,7 +58,7 @@ namespace EmbeddedAPI
             using var responseStream = await response.Content.ReadAsStreamAsync();
             using var reader = new StreamReader(responseStream);
             var json = await reader.ReadToEndAsync();
-            var result = JsonConvert.DeserializeObject<RegisterResponse>(json);
+            var result = JsonUtility.FromJson<RegisterResponse>(json);
 
             if (result == null || string.IsNullOrEmpty(result.matchId))
             {
@@ -77,7 +77,7 @@ namespace EmbeddedAPI
                 loserWallet
             };
 
-            var body = JsonConvert.SerializeObject(payload);
+            var body = JsonUtility.ToJson(payload);
             var content = new StringContent(body, Encoding.UTF8, "application/json");
 
             var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/matchComplete")
