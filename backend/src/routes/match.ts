@@ -1,10 +1,11 @@
 import express from 'express'
 import { prisma } from '../prisma'
+import { verifySignature } from '../middleware/verifySignature'
 
 const router = express.Router()
 
 // POST /registerPlayer
-router.post('/registerPlayer', async (req, res):  Promise<any> => {
+router.post('/registerPlayer', verifySignature, async (req, res):  Promise<any> => {
   const { walletAddress, txSignature } = req.body
 
   if (!walletAddress || !txSignature)
@@ -45,7 +46,7 @@ router.post('/registerPlayer', async (req, res):  Promise<any> => {
 })
 
 // POST /matchComplete
-router.post('/matchComplete', async (req, res):  Promise<any> => {
+router.post('/matchComplete', verifySignature, async (req, res):  Promise<any> => {
   const { matchID, winnerWallet, loserWallet } = req.body
 
   if (!matchID || !winnerWallet || !loserWallet)

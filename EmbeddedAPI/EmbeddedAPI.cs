@@ -21,10 +21,9 @@ namespace EmbeddedAPI
             using var hmac = new HMACSHA256(key);
             var hashBytes = hmac.ComputeHash(message);
             var hex = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
-            
+
             return hex;
         }
-
 
         private static void AddSecureHeaders(HttpRequestMessage request, string body)
         {
