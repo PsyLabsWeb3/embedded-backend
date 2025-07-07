@@ -93,7 +93,7 @@ namespace EmbeddedAPI
 
         private class RegisterResponse
         {
-            public string? matchId { get; set; }
+            public string matchId { get; set; }
         }
     }
 }
