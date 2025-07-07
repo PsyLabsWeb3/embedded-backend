@@ -91,7 +91,7 @@ cd EmbeddedAPI/
 dotnet build -c Release
 ```
 
-Output DLL: EmbeddedAPI/bin/Release/netstandard2.1/EmbeddedAPI.dll
+Output DLL: EmbeddedAPI/bin/Release/net471/EmbeddedAPI.dll
 
 ### 6. Usage from Unity
 
