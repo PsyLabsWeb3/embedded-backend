@@ -95,10 +95,10 @@ Output DLL: EmbeddedAPI/bin/Release/net471/EmbeddedAPI.dll
 
 ### 6. Usage from Unity
 
-Copy EmbeddedAPI.dll into your Unity project:
+Copy EmbeddedAPI.cs into your Unity project:
 
 ```bash
-Assets/Plugins/EmbeddedAPI.dll
+Assets/Plugins/EmbeddedAPI.cs
 ```
 
 In Unity scripts, use it like this:
