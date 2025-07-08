@@ -15,7 +15,10 @@ embedded-backend/
 │ └── .env # Environment variables
 │
 └── database/ # Local PostgreSQL setup (Docker)
-  └── docker-compose.yml
+│ └── docker-compose.yml
+│
+└── EmbeddedAPI/ # C# DLL to safely call the backend through Unity
+
 ```
 
 ## Requirements
@@ -78,6 +81,35 @@ npm run dev
 ```
 
 Accessible at: http://localhost:3000/api/
+
+### 5. Importing and using the EmbeddedAPI from Unity
+
+Copy EmbeddedAPI/EmbeddedAPI.cs into your Unity project:
+
+```bash
+Assets/Plugins/EmbeddedAPI.cs
+```
+
+In Unity scripts, use it like this:
+
+```bash
+using UnityEngine;
+using EmbeddedAPI;
+
+public class MatchExample : MonoBehaviour
+{
+    async void Start()
+    {
+        string wallet = "test_wallet_123";
+        string tx = "fake_tx_abc";
+
+        string matchId = await API.RegisterPlayerAsync(wallet, tx);
+        Debug.Log("Match ID: " + matchId);
+
+        await API.ReportMatchResultAsync(matchId, wallet, "test_wallet_456");
+    }
+}
+```
 
 ## License
 

@@ -1,10 +1,13 @@
 import express from 'express'
 import { prisma } from '../prisma'
+import { verifySignature } from '../middleware/verifySignature'
 
 const router = express.Router()
 
 // POST /registerPlayer
-router.post('/registerPlayer', async (req, res):  Promise<any> => {
+router.post('/registerPlayer', verifySignature, async (req, res):  Promise<any> => {
+  console.log('/registerPlayer received body:', req.body);
+
   const { walletAddress, txSignature } = req.body
 
   if (!walletAddress || !txSignature)
@@ -26,7 +29,8 @@ router.post('/registerPlayer', async (req, res):  Promise<any> => {
       data: {
         walletB: { connect: { id: wallet.id } },
         txSigB: txSignature,
-        status: 'IN_PROGRESS'
+        status: 'IN_PROGRESS',
+        startedAt: new Date()
       }
     })
   } else {
@@ -45,30 +49,40 @@ router.post('/registerPlayer', async (req, res):  Promise<any> => {
 })
 
 // POST /matchComplete
-router.post('/matchComplete', async (req, res):  Promise<any> => {
-  const { matchID, winnerWallet, loserWallet } = req.body
+router.post('/matchComplete', verifySignature, async (req, res):  Promise<any> => {
+  console.log('/matchComplete received body:', req.body);
 
-  if (!matchID || !winnerWallet || !loserWallet)
+  const { matchID, winnerWallet } = req.body
+
+  if (!matchID || !winnerWallet)
     return res.status(400).json({ error: 'Missing params' })
 
   const match = await prisma.match.findUnique({
-    where: { matchId: matchID },
+    where: { matchId: matchID, status: 'IN_PROGRESS' },
     include: { walletA: true, walletB: true }
   })
 
   if (!match)
     return res.status(404).json({ error: 'Match not found' })
 
-  const [walletA, walletB] = [match.walletA.address, match.walletB?.address]
+  const walletA = match.walletA?.address;
+  const walletB = match.walletB?.address;
 
-  if (![walletA, walletB].includes(winnerWallet) || ![walletA, walletB].includes(loserWallet))
-    return res.status(400).json({ error: 'Wallets do not match match participants' })
+  if (![walletA, walletB].includes(winnerWallet))
+    return res.status(400).json({ error: 'Wallet is not a participant in this match' });
 
-  const winner = await prisma.wallet.findUnique({ where: { address: winnerWallet } })
-  const loser = await prisma.wallet.findUnique({ where: { address: loserWallet } })
+  const loserWallet = winnerWallet === walletA ? walletB : walletA;
+
+  if (!loserWallet)
+    return res.status(400).json({ error: 'Match has only one participant, cannot resolve loser' });
+
+  const [winner, loser] = await Promise.all([
+    prisma.wallet.findUnique({ where: { address: winnerWallet } }),
+    prisma.wallet.findUnique({ where: { address: loserWallet } }),
+  ]);
 
   if (!winner || !loser)
-    return res.status(404).json({ error: 'One or both wallets not found' })
+    return res.status(404).json({ error: 'Could not find both wallet records' });
 
   await prisma.match.update({
     where: { matchId: matchID },
@@ -77,17 +91,17 @@ router.post('/matchComplete', async (req, res):  Promise<any> => {
       status: 'FINISHED',
       endedAt: new Date()
     }
-  })
+  });
 
   await prisma.wallet.update({
     where: { id: winner.id },
     data: { points: { increment: 2 } }
-  })
+  });
 
   await prisma.wallet.update({
     where: { id: loser.id },
     data: { points: { increment: 1 } }
-  })
+  });
 
   res.json({ message: 'Match completed and points updated' })
 })
