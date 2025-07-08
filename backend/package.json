@@ -7,7 +7,8 @@
     "postinstall": "prisma generate",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "resolve-stale": "tsx src/cron/resolveStaleMatches.ts"
   },
   "keywords": [],
   "author": "",
