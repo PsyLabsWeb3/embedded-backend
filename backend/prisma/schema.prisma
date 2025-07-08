@@ -30,8 +30,10 @@ model Match {
   matchId      String  @unique
   walletA      Wallet  @relation("WalletA", fields: [walletAId], references: [id])
   walletAId    Int
+  walletAJoined DateTime?
   walletB      Wallet? @relation("WalletB", fields: [walletBId], references: [id])
   walletBId    Int?
+  walletBJoined DateTime?
   winnerWallet Wallet? @relation("WinnerWallet", fields: [winnerId], references: [id])
   winnerId     Int?
 
@@ -48,7 +50,6 @@ enum MatchStatus {
   WAITING
   IN_PROGRESS
   FINISHED
-  CANCELLED
 }
 
 model SeasonResult {
