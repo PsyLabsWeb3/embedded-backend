@@ -23,13 +23,13 @@ router.get('/matchesInProgress', async (req, res): Promise<any> => {
 router.post('/matchJoin', verifySignature, async (req, res): Promise<any> => {
   console.log('/matchJoin received body:', req.body);
 
-  const { matchId, wallet } = req.body;
-  if (!matchId || !wallet)
+  const { matchID, walletAddress } = req.body;
+  if (!matchID || !walletAddress)
     return res.status(400).json({ error: "Invalid payload" });
 
   try {
     const match = await prisma.match.findUnique({
-      where: { matchId },
+      where: { matchId: matchID },
       include: { walletA: true, walletB: true }
     });
 
@@ -39,20 +39,20 @@ router.post('/matchJoin', verifySignature, async (req, res): Promise<any> => {
     let update: any = {};
     const now = new Date();
 
-    if (match.walletA?.address === wallet) {
+    if (match.walletA?.address === walletAddress) {
       update.walletAJoined = now;
-    } else if (match.walletB?.address === wallet) {
+    } else if (match.walletB?.address === walletAddress) {
       update.walletBJoined = now;
     } else {
       return res.status(400).json({ error: "Wallet is not a participant in this match" });
     }
 
     await prisma.match.update({
-      where: { matchId },
+      where: { matchId: matchID },
       data: update
     });
 
-    console.log(`Wallet ${wallet} joined match ${matchId} in Photon`);
+    console.log(`Wallet ${walletAddress} joined match ${matchID} in Photon`);
     res.json({ message: "Join recorded" });
   } catch (err) {
     console.error('[matchJoin] Error:', err);
