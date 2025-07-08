@@ -1,17 +1,36 @@
 ﻿using System;
-using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace EmbeddedAPI
 {
     public static class API
     {
         private static readonly string sharedSecret = "embedded_dev_secret";
-        private static readonly HttpClient client = new HttpClient();
         private static readonly string baseUrl = "http://localhost:3000/api";
+
+        [Serializable]
+        public class RegisterPayload
+        {
+            public string walletAddress;
+            public string txSignature;
+        }
+
+        [Serializable]
+        public class RegisterResponse
+        {
+            public string matchId;
+        }
+
+        [Serializable]
+        public class MatchCompletePayload
+        {
+            public string matchID;
+            public string winnerWallet;
+        }
 
         private static string GenerateSignature(string body, string timestamp)
         {
@@ -25,75 +44,71 @@ namespace EmbeddedAPI
             return hex;
         }
 
-        private static void AddSecureHeaders(HttpRequestMessage request, string body)
+        private static void AddSecureHeaders(UnityWebRequest request, string body)
         {
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
             var signature = GenerateSignature(body, timestamp);
 
-            request.Headers.Add("x-signature", signature);
-            request.Headers.Add("x-timestamp", timestamp);
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.SetRequestHeader("x-signature", signature);
+            request.SetRequestHeader("x-timestamp", timestamp);
+
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(body);
+            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            request.downloadHandler = new DownloadHandlerBuffer();
         }
 
         public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature)
         {
-            var payload = new
+            var payload = new RegisterPayload
             {
-                walletAddress,
-                txSignature
+                walletAddress = walletAddress,
+                txSignature = txSignature
             };
 
             var body = JsonUtility.ToJson(payload);
-            var content = new StringContent(body, Encoding.UTF8, "application/json");
-
-            var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/registerPlayer")
-            {
-                Content = content
-            };
-
+            var request = new UnityWebRequest(baseUrl + "/registerPlayer", "POST");
+            
             AddSecureHeaders(request, body);
 
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
+            await request.SendWebRequest();
 
-            using var responseStream = await response.Content.ReadAsStreamAsync();
-            using var reader = new StreamReader(responseStream);
-            var json = await reader.ReadToEndAsync();
-            var result = JsonUtility.FromJson<RegisterResponse>(json);
-
-            if (result == null || string.IsNullOrEmpty(result.matchId))
+            if (request.result != UnityWebRequest.Result.Success)
             {
-                throw new InvalidOperationException("Failed to register player or retrieve match ID.");
+                Debug.LogError("Error: " + request.error);
+                throw new InvalidOperationException($"Failed to register player and retrieve match ID.");
             }
 
-            return result.matchId;
+            RegisterResponse responseData = JsonUtility.FromJson<RegisterResponse>(request.downloadHandler.text);
+
+            if (string.IsNullOrEmpty(responseData.matchId))
+            {
+                throw new InvalidOperationException("Failed to register player and retrieve match ID.");
+            }
+
+            return responseData.matchId;
         }
 
-        public static async Task ReportMatchResultAsync(string matchId, string winnerWallet, string loserWallet)
+        public static async Task ReportMatchResultAsync(string matchId, string winnerWallet)
         {
-            var payload = new
+            var payload = new MatchCompletePayload
             {
                 matchID = matchId,
-                winnerWallet,
-                loserWallet
+                winnerWallet = winnerWallet
             };
 
             var body = JsonUtility.ToJson(payload);
-            var content = new StringContent(body, Encoding.UTF8, "application/json");
 
-            var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/matchComplete")
-            {
-                Content = content
-            };
+            var request = new UnityWebRequest(baseUrl + "/matchComplete", "POST");
 
             AddSecureHeaders(request, body);
 
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-        }
+            await request.SendWebRequest();
 
-        private class RegisterResponse
-        {
-            public string matchId { get; set; }
+            if (request.result == UnityWebRequest.Result.Success)
+                Debug.Log("Success: " + request.downloadHandler.text);
+            else
+                Debug.LogError("Error: " + request.error);
         }
     }
 }

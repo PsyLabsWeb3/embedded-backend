@@ -94,7 +94,6 @@ In Unity scripts, use it like this:
 
 ```bash
 using UnityEngine;
-using System.Threading.Tasks;
 using EmbeddedAPI;
 
 public class MatchExample : MonoBehaviour
