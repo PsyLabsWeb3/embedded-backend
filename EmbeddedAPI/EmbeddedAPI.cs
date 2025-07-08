@@ -32,6 +32,13 @@ namespace EmbeddedAPI
             public string winnerWallet;
         }
 
+        [Serializable]
+        private class MatchJoinPayload
+        {
+            public string matchID;
+            public string walletAddress;
+        }
+
         private static string GenerateSignature(string body, string timestamp)
         {
             var key = Encoding.UTF8.GetBytes(sharedSecret);
@@ -68,7 +75,7 @@ namespace EmbeddedAPI
 
             var body = JsonUtility.ToJson(payload);
             var request = new UnityWebRequest(baseUrl + "/registerPlayer", "POST");
-            
+
             AddSecureHeaders(request, body);
 
             await request.SendWebRequest();
@@ -87,6 +94,30 @@ namespace EmbeddedAPI
             }
 
             return responseData.matchId;
+        }
+
+        public static async Task<string> JoinMatchAsync(string matchId, string walletAddress)
+        {
+            var payload = new MatchJoinPayload
+            {
+                matchID = matchId,
+                walletAddress = walletAddress
+            };
+
+            var jsonBody = JsonUtility.ToJson(payload);
+            var request = new UnityWebRequest(baseUrl + "/matchJoin", "POST");
+
+            AddSecureHeaders(request, jsonBody);
+
+            await request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError("Error: " + request.error);
+                throw new InvalidOperationException($"Failed to join match with ID {matchId}.");
+            }
+
+            return request.downloadHandler.text;
         }
 
         public static async Task ReportMatchResultAsync(string matchId, string winnerWallet)
