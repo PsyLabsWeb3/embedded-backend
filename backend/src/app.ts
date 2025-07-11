@@ -1,7 +1,8 @@
 import express from 'express'
 import cors from 'cors'
-import matchRoutes from './routes/match'
 import healthCheckRoutes from './routes/healthCheck'
+import matchRoutes from './routes/match'
+import leaderboardRoutes from './routes/leaderboard'
 import dotenv from 'dotenv'
 
 dotenv.config()
@@ -11,7 +12,8 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-app.use('/api', matchRoutes)
 app.use('/api', healthCheckRoutes)
+app.use('/api', matchRoutes)
+app.use('/api', leaderboardRoutes)
 
 export default app
