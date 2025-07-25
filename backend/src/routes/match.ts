@@ -7,12 +7,11 @@ const router = express.Router()
 // GET /matchesInProgress
 router.get('/matchesInProgress', async (req, res): Promise<any> => {
   try {
-    const matches = await prisma.match.findMany({
+    const matchesInProgress = await prisma.match.count({
       where: { status: 'IN_PROGRESS' },
-      include: { walletA: true, walletB: true }
     });
 
-    res.json({ matchesInProgress: matches.length });
+    res.json({ matchesInProgress });
   } catch (err) {
     console.error('[matchesInProgress] Error:', err);
     res.status(500).json({ error: 'Failed to fetch matches in progress' });
