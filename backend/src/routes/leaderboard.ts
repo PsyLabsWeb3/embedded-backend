@@ -1,5 +1,6 @@
 import express from 'express'
 import { prisma } from '../prisma'
+import { verifySignature } from '../middleware/verifySignature'
 
 const router = express.Router()
 
@@ -58,5 +59,70 @@ async function fetchLeaderboardFromDB() {
     return null;
   }
 }
+
+router.get('/matchHistory', /* verifySignature, */ async (req, res): Promise<any> => {
+  const walletAddress = req.query.walletAddress as string;
+
+  if (!walletAddress) {
+    return res.status(400).json({ error: 'Missing wallet address' });
+  }
+
+  try {
+    const wallet = await prisma.wallet.findUnique({
+      where: { address: walletAddress },
+      select: {
+        id: true,
+        points: true,
+      },
+    });
+
+    if (!wallet) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
+
+    const matches = await prisma.match.findMany({
+      where: {
+        status: 'FINISHED',
+        OR: [
+          { walletA: { address: walletAddress } },
+          { walletB: { address: walletAddress } }
+        ]
+      },
+      select: {
+        matchId: true,
+        startedAt: true,
+        winnerWallet: { select: { address: true } },
+        walletA: { select: { address: true } },
+        walletB: { select: { address: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 50
+    });
+
+    const history = matches.map(match => {
+      const opponent = match.walletA.address === walletAddress
+        ? match.walletB?.address
+        : match.walletA?.address;
+
+      const result = match.winnerWallet?.address === walletAddress ? 'WIN' : 'LOSS';
+
+      return {
+        matchId: match.matchId,
+        opponent,
+        result,
+        matchDate: match.startedAt,
+      };
+    });
+
+    res.json({
+      wallet: walletAddress,
+      points: wallet.points,
+      history,
+    });
+  } catch (err) {
+    console.error('[matchHistory] Error:', err);
+    res.status(500).json({ error: 'Failed to fetch match history' });
+  }
+});
 
 export default router
