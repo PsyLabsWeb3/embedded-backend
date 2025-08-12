@@ -1,0 +1,8 @@
+-- CreateEnum
+CREATE TYPE "MatchMode" AS ENUM ('CASUAL', 'BETTING');
+
+-- AlterTable
+ALTER TABLE "Match" ADD COLUMN     "betAmount" DECIMAL(10,2) NOT NULL DEFAULT 50.00,
+ADD COLUMN     "game" TEXT,
+ADD COLUMN     "matchFee" DECIMAL(10,2) NOT NULL DEFAULT 10.00,
+ADD COLUMN     "mode" "MatchMode" NOT NULL DEFAULT 'CASUAL';

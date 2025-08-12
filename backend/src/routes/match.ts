@@ -18,6 +18,73 @@ router.get('/matchesInProgress', async (req, res): Promise<any> => {
   }
 })
 
+// POST /registerPlayer
+router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> => {
+  console.log('/registerPlayer received body:', req.body);
+
+  const { walletAddress, txSignature, game, mode, betAmount, matchFee } = req.body
+
+  if (!walletAddress || !txSignature || !game)
+    return res.status(400).json({ error: 'Missing walletAddress, txSignature or game' })
+
+  if (mode && !['Casual', 'Betting'].includes(mode)) {
+    return res.status(400).json({ error: 'Invalid game mode' });
+  }
+
+  if (mode && mode === "Betting") {
+    if (!betAmount || isNaN(betAmount) || betAmount <= 0)
+      return res.status(400).json({ error: 'Invalid bet amount' });
+
+    if (!matchFee || isNaN(matchFee) || matchFee < 0)
+      return res.status(400).json({ error: 'Invalid match fee' });
+  }
+
+  let wallet = await prisma.wallet.findUnique({ where: { address: walletAddress } })
+  if (!wallet) {
+    wallet = await prisma.wallet.create({ data: { address: walletAddress } })
+  }
+
+  try {
+    const match = await prisma.$transaction(async (tx) => {
+      const openMatch = await tx.match.findFirst({
+        where: { status: 'WAITING', walletBId: null, game: game },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      if (openMatch) {
+        return await tx.match.update({
+          where: { id: openMatch.id },
+          data: {
+            walletB: { connect: { id: wallet.id } },
+            txSigB: txSignature,
+            status: 'IN_PROGRESS',
+            startedAt: new Date()
+          }
+        });
+      } else {
+        const matchId = crypto.randomUUID();
+        return await tx.match.create({
+          data: {
+            matchId,
+            walletA: { connect: { id: wallet.id } },
+            txSigA: txSignature,
+            game: game,
+            mode: mode || 'Casual',
+            betAmount: betAmount || 0.50,
+            matchFee: matchFee || 0.10,
+            status: 'WAITING'
+          }
+        });
+      }
+    });
+
+    res.json({ matchId: match.matchId });
+  } catch (err) {
+    console.error('[registerPlayer] Error:', err);
+    res.status(500).json({ error: 'Failed to register player' });
+  }
+})
+
 // POST /matchJoin
 router.post('/matchJoin', verifySignature, async (req, res): Promise<any> => {
   console.log('/matchJoin received body:', req.body);
@@ -58,57 +125,6 @@ router.post('/matchJoin', verifySignature, async (req, res): Promise<any> => {
     res.status(500).json({ error: 'Failed to record join' });
   }
 });
-
-// POST /registerPlayer
-router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> => {
-  console.log('/registerPlayer received body:', req.body);
-
-  const { walletAddress, txSignature } = req.body
-
-  if (!walletAddress || !txSignature)
-    return res.status(400).json({ error: 'Missing walletAddress or txSignature' })
-
-  let wallet = await prisma.wallet.findUnique({ where: { address: walletAddress } })
-  if (!wallet) {
-    wallet = await prisma.wallet.create({ data: { address: walletAddress } })
-  }
-
-  try {
-    const match = await prisma.$transaction(async (tx) => {
-      const openMatch = await tx.match.findFirst({
-        where: { status: 'WAITING', walletBId: null },
-        orderBy: { createdAt: 'asc' },
-      });
-
-      if (openMatch) {
-        return await tx.match.update({
-          where: { id: openMatch.id },
-          data: {
-            walletB: { connect: { id: wallet.id } },
-            txSigB: txSignature,
-            status: 'IN_PROGRESS',
-            startedAt: new Date()
-          }
-        });
-      } else {
-        const matchId = crypto.randomUUID();
-        return await tx.match.create({
-          data: {
-            matchId,
-            walletA: { connect: { id: wallet.id } },
-            txSigA: txSignature,
-            status: 'WAITING'
-          }
-        });
-      }
-    });
-
-    res.json({ matchId: match.matchId });
-  } catch (err) {
-    console.error('[registerPlayer] Error:', err);
-    res.status(500).json({ error: 'Failed to register player' });
-  }
-})
 
 // POST /matchComplete
 router.post('/matchComplete', verifySignature, async (req, res): Promise<any> => {

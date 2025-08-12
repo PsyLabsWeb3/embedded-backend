@@ -94,6 +94,10 @@ router.get('/matchHistory', /* verifySignature, */ async (req, res): Promise<any
         winnerWallet: { select: { address: true } },
         walletA: { select: { address: true } },
         walletB: { select: { address: true } },
+        game: true,
+        mode: true,
+        betAmount: true,
+        matchFee: true,
       },
       orderBy: { startedAt: 'desc' },
       take: 50
@@ -106,10 +110,21 @@ router.get('/matchHistory', /* verifySignature, */ async (req, res): Promise<any
 
       const result = match.winnerWallet?.address === walletAddress ? 'WIN' : 'LOSS';
 
+      const mode = match.mode === 'CASUAL' ? 'Casual' : 'Betting';
+
+      const amount = result === 'LOSS'
+        ? Number(match.betAmount)
+        : (Number(match.betAmount) * 2) - (Number(match.matchFee) * 2);
+        
+      const formattedAmount = Number(amount).toFixed(2);
+
       return {
         matchId: match.matchId,
+        game: match.game,
+        mode,
         opponent,
         result,
+        amount: formattedAmount,
         matchDate: match.startedAt,
       };
     });

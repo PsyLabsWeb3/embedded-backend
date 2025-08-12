@@ -37,6 +37,11 @@ model Match {
   winnerWallet Wallet? @relation("WinnerWallet", fields: [winnerId], references: [id])
   winnerId     Int?
 
+  game String?
+  mode MatchMode @default(CASUAL)
+  betAmount Decimal @db.Decimal(10, 2) @default(0.50)
+  matchFee Decimal @db.Decimal(10, 2) @default(0.10)
+
   txSigA String
   txSigB String?
 
@@ -44,6 +49,11 @@ model Match {
   createdAt DateTime    @default(now())
   startedAt DateTime?
   endedAt   DateTime?
+}
+
+enum MatchMode {
+  CASUAL
+  BETTING
 }
 
 enum MatchStatus {
