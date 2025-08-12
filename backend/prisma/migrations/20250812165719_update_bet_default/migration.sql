@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Match" ALTER COLUMN "betAmount" SET DEFAULT 0.50,
+ALTER COLUMN "matchFee" SET DEFAULT 0.10;

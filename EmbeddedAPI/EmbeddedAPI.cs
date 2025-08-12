@@ -17,6 +17,10 @@ namespace EmbeddedAPI
         {
             public string walletAddress;
             public string txSignature;
+            public string game;
+            public string? mode; // Optional, can be "Casual" or "Betting"
+            public decimal? betAmount; // Optional, required if mode is "Betting"
+            public decimal? matchFee; // Optional, required if mode is "Betting"
         }
 
         [Serializable]
@@ -65,12 +69,18 @@ namespace EmbeddedAPI
             request.downloadHandler = new DownloadHandlerBuffer();
         }
 
-        public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature)
+        public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
+                                                             string mode = null, decimal betAmount = null,
+                                                             decimal matchFee = null)
         {
             var payload = new RegisterPayload
             {
                 walletAddress = walletAddress,
-                txSignature = txSignature
+                txSignature = txSignature,
+                game = game,
+                mode = mode,
+                betAmount = betAmount,
+                matchFee = matchFee
             };
 
             var body = JsonUtility.ToJson(payload);
