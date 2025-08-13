@@ -69,7 +69,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
             walletA: { connect: { id: wallet.id } },
             txSigA: txSignature,
             game: game,
-            mode: mode || 'Casual',
+            mode: (mode ? mode.toUpperCase() : 'CASUAL'),
             betAmount: betAmount || 0.50,
             matchFee: matchFee || 0.10,
             status: 'WAITING'
