@@ -1,12 +1,12 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { SolanaAnchorProgram } from "../target/types/solana_anchor_program";
+import { Embedded } from "../target/types/embedded";
 
-describe("solana-anchor-program", () => {
+describe("embedded", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.AnchorProvider.env());
 
-  const program = anchor.workspace.solanaAnchorProgram as Program<SolanaAnchorProgram>;
+  const program = anchor.workspace.solanaAnchorProgram as Program<Embedded>;
 
   it("Is initialized!", async () => {
     // Add your test here.

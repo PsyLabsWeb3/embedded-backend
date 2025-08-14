@@ -532,6 +532,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1153,13 +1160,6 @@ dependencies = [
  "solana-pubkey",
  "solana-sdk-ids",
  "solana-slot-hashes",
-]
-
-[[package]]
-name = "solana-anchor-program"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
 ]
 
 [[package]]

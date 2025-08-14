@@ -1,12 +1,12 @@
 [package]
-name = "solana-anchor-program"
+name = "embedded"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "solana_anchor_program"
+name = "embedded"
 
 [features]
 default = []

@@ -6,7 +6,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solana_anchor_program = "7BrNnbcYfbafKnp8BDu1SSUwBDXLB2QBfr4KEKyFfnqK"
+solana_anchor_program = "BUQFRUJECRCADvdtStPUgcBgnvcNZhSWbuqBraPWPKf8"
+
+[programs.devnet]
+solana_anchor_program = "BUQFRUJECRCADvdtStPUgcBgnvcNZhSWbuqBraPWPKf8"
 
 [registry]
 url = "https://api.apr.dev"
@@ -17,3 +20,4 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+init = "npx ts-node scripts/init.ts"
