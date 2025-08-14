@@ -1,0 +1,32 @@
+# Normalize all text files to LF line endings
+* text=auto eol=lf
+
+# Explicitly mark source code files
+*.js     text eol=lf
+*.ts     text eol=lf
+*.jsx    text eol=lf
+*.tsx    text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.md     text eol=lf
+*.sh     text eol=lf
+*.rs     text eol=lf
+*.toml   text eol=lf
+*.sol    text eol=lf
+*.html   text eol=lf
+*.css    text eol=lf
+
+# Binary files (no normalization)
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.ttf    binary
+*.woff   binary
+*.woff2  binary
+
+# Prevent shell scripts from being corrupted
+*.sh     text eol=lf
