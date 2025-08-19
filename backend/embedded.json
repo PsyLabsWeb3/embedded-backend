@@ -386,8 +386,8 @@
           "type": "u64"
         },
         {
-          "name": "fee_bps",
-          "type": "u16"
+          "name": "total_fee",
+          "type": "u64"
         },
         {
           "name": "mode",
@@ -684,8 +684,8 @@
             "type": "u64"
           },
           {
-            "name": "fee_bps",
-            "type": "u16"
+            "name": "total_fee",
+            "type": "u64"
           },
           {
             "name": "mode",
@@ -723,12 +723,6 @@
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "casual_bet",
-            "type": {
-              "option": "u64"
-            }
-          },
           {
             "name": "casual_fee_bps",
             "type": {

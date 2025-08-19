@@ -3,6 +3,7 @@ import { loadKeypairFromFile, getPdas, LAMPORTS } from '../middleware/solanaUtil
 import { fetchSolPrice } from "../services/solanaService";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
+import path from "path";
 
 const ANCHOR_PROGRAM_ID = new PublicKey(process.env.ANCHOR_PROGRAM_ID!);
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
@@ -18,7 +19,8 @@ function getProviderAndProgram() {
         commitment: "finalized",
     });
     anchor.setProvider(provider);
-    const idl = require(PROGRAM_IDL_PATH);
+    const idlPath = path.resolve(PROGRAM_IDL_PATH);
+    const idl = require(idlPath);
     const program = new anchor.Program(idl, provider);
     return { program, provider, authorityKeypair };
 }
@@ -69,7 +71,9 @@ export async function completeMatch(matchId: string, winnerWallet: string) {
     const feeAmountSol = Number(match.matchFee) / solanaPriceInUsd;
     const totalFeeLamports = Math.round(feeAmountSol * 2 * LAMPORTS);
 
-    const modeArg = match.mode === 'BETTING' ? 1 : 0;
+    const modeArg = match.mode === 'BETTING'
+    ? { betting: {} }
+    : { casual: {} };
 
     const winnerPubkey = new PublicKey(winnerWallet);
 
