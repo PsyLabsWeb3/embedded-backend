@@ -1,8 +1,11 @@
 import express from 'express'
 import { prisma } from '../prisma'
 import { verifySignature } from '../middleware/verifySignature'
+import { completeMatch } from "../services/matchService";
+import { Connection } from "@solana/web3.js";
 
 const router = express.Router()
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 
 // GET /matchesInProgress
 router.get('/matchesInProgress', async (req, res): Promise<any> => {
@@ -24,8 +27,22 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
 
   const { walletAddress, txSignature, game, mode, betAmount, matchFee } = req.body
 
-  if (!walletAddress || !txSignature || !game)
+  if (!walletAddress || !txSignature || !game) {
     return res.status(400).json({ error: 'Missing walletAddress, txSignature or game' })
+  }
+
+  // Verify transaction commitment = finalized
+  const conn = new Connection(SOLANA_RPC_URL, "finalized");
+
+  const tx = await conn.getTransaction(txSignature, {maxSupportedTransactionVersion: 0});
+  if (!tx) {
+    return res.status(400).json({ error: 'Fee deposit not found'});
+  }
+
+  const confirmed = tx.meta && tx.meta.err === null;
+  if (!confirmed) {
+    return res.status(400).json({ error: 'Fee deposit transaction not finalized' });
+  }
 
   if (mode && !['Casual', 'Betting'].includes(mode)) {
     return res.status(400).json({ error: 'Invalid game mode' });
@@ -91,7 +108,7 @@ router.post('/matchJoin', verifySignature, async (req, res): Promise<any> => {
 
   const { matchID, walletAddress } = req.body;
   if (!matchID || !walletAddress)
-    return res.status(400).json({ error: "Invalid payload" });
+    return res.status(400).json({ error: "Missing matchID or walletAddress" });
 
   try {
     const match = await prisma.match.findUnique({
@@ -132,63 +149,19 @@ router.post('/matchComplete', verifySignature, async (req, res): Promise<any> =>
 
   const { matchID, winnerWallet } = req.body
 
-  if (!matchID || !winnerWallet)
-    return res.status(400).json({ error: 'Missing params' })
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      const match = await tx.match.findFirst({
-        where: { matchId: matchID, status: 'IN_PROGRESS' },
-        include: { walletA: true, walletB: true }
-      });
-
-      if (!match)
-        throw new Error('Match not found or already completed');
-
-      const walletA = match.walletA?.address;
-      const walletB = match.walletB?.address;
-
-      if (![walletA, walletB].includes(winnerWallet))
-        throw new Error('Wallet is not a participant in this match');
-
-      const loserWallet = winnerWallet === walletA ? walletB : walletA;
-      if (!loserWallet)
-        throw new Error('Match has only one participant');
-
-      const [winner, loser] = await Promise.all([
-        tx.wallet.findUnique({ where: { address: winnerWallet } }),
-        tx.wallet.findUnique({ where: { address: loserWallet } }),
-      ]);
-
-      if (!winner || !loser)
-        throw new Error('Could not find both wallets');
-
-      await tx.match.update({
-        where: { id: match.id },
-        data: {
-          winnerWallet: { connect: { id: winner.id } },
-          status: 'FINISHED',
-          endedAt: new Date()
-        }
-      });
-
-      await tx.wallet.update({
-        where: { id: winner.id },
-        data: { points: { increment: 2 } }
-      });
-
-      await tx.wallet.update({
-        where: { id: loser.id },
-        data: { points: { increment: 1 } }
-      });
-    });
-
-    res.json({ message: 'Match completed and points updated' });
-
-  } catch (err) {
-    console.error('[matchComplete] Error:', err);
-    res.status(400).json({ error: 'Failed to complete match' });
+  if (!matchID || !winnerWallet) {
+    return res.status(400).json({ error: 'Missing matchID or winnerWallet' })
   }
+
+  const result = await completeMatch(matchID, winnerWallet);
+  if (!result.ok) {
+    if (result.reason === "already_claimed") return res.status(409).json({ error: "Match already completed" });
+
+    console.error(result.error);
+    return res.status(500).json({ error: "Failed to complete match" });
+  }
+
+  res.json({ message: "Match settled on-chain and DB updated", tx: result.txSig });
 })
 
 export default router

@@ -1,0 +1,782 @@
+{
+  "address": "BUQFRUJECRCADvdtStPUgcBgnvcNZhSWbuqBraPWPKf8",
+  "metadata": {
+    "name": "embedded",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "distribute_rewards",
+      "docs": [
+        "Distribute rewards from treasury based on winners array (points-based).",
+        "Admin Only (config authority)"
+      ],
+      "discriminator": [
+        97,
+        6,
+        227,
+        255,
+        124,
+        165,
+        3,
+        148
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "winners",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "WinnerInput"
+              }
+            }
+          }
+        },
+        {
+          "name": "insiders",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "InsiderInput"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize_config",
+      "docs": [
+        "Initialize config (admin only)"
+      ],
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "casual_bet_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "casual_fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "betting_fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "winners_mode_is_percentage",
+          "type": "bool"
+        },
+        {
+          "name": "winners_value",
+          "type": "u16"
+        },
+        {
+          "name": "reward_percentage_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "initialize_treasury_bump",
+      "docs": [
+        "Initialize treasury bump (admin only)"
+      ],
+      "discriminator": [
+        113,
+        175,
+        22,
+        29,
+        15,
+        174,
+        235,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pay_entry",
+      "docs": [
+        "User pays entry (signed by user). Funds are transferred into the match PDA (program-owned)."
+      ],
+      "discriminator": [
+        187,
+        10,
+        90,
+        67,
+        83,
+        172,
+        196,
+        207
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "settle_match",
+      "docs": [
+        "Settle a finished match: pays winner and moves fees to treasury",
+        "Requires that the match PDA currently holds the funds",
+        "Admin only (config authority)"
+      ],
+      "discriminator": [
+        71,
+        124,
+        117,
+        96,
+        191,
+        217,
+        116,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "match_id",
+          "type": "string"
+        },
+        {
+          "name": "total_amount",
+          "type": "u64"
+        },
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "mode",
+          "type": {
+            "defined": {
+              "name": "MatchMode"
+            }
+          }
+        },
+        {
+          "name": "winner",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "update_config",
+      "docs": [
+        "Update config values (admin only)"
+      ],
+      "discriminator": [
+        29,
+        158,
+        252,
+        191,
+        10,
+        83,
+        219,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_cfg",
+          "type": {
+            "defined": {
+              "name": "UpdateConfigParams"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Treasury",
+      "discriminator": [
+        238,
+        239,
+        123,
+        238,
+        89,
+        1,
+        168,
+        253
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "DepositEvent",
+      "discriminator": [
+        120,
+        248,
+        61,
+        83,
+        31,
+        142,
+        107,
+        144
+      ]
+    },
+    {
+      "name": "DistributedRewardsEvent",
+      "discriminator": [
+        134,
+        234,
+        32,
+        104,
+        82,
+        35,
+        30,
+        25
+      ]
+    },
+    {
+      "name": "SettleEvent",
+      "discriminator": [
+        14,
+        166,
+        206,
+        248,
+        35,
+        1,
+        134,
+        48
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6001,
+      "name": "InsufficientFunds",
+      "msg": "Insufficient funds in treasury"
+    },
+    {
+      "code": 6002,
+      "name": "MathOverflow",
+      "msg": "Math overflow"
+    },
+    {
+      "code": 6003,
+      "name": "NoPoints",
+      "msg": "No points"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidInsiderShares",
+      "msg": "Insider shares exceed 100% (10000 bps)"
+    },
+    {
+      "code": 6005,
+      "name": "MissingRemainingAccounts",
+      "msg": "Not enough remaining accounts passed for winners/insiders"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "docs": [
+        "---------- Data structs ----------"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "casual_bet",
+            "type": "u64"
+          },
+          {
+            "name": "casual_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "betting_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "winners_mode_is_percentage",
+            "type": "bool"
+          },
+          {
+            "name": "winners_value",
+            "type": "u16"
+          },
+          {
+            "name": "reward_percentage_bps",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DepositEvent",
+      "docs": [
+        "---------- Events ----------"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "payer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DistributedRewardsEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "distributed_reward_pool",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InsiderInput",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "share_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MatchMode",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Casual"
+          },
+          {
+            "name": "Betting"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SettleEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "match_id",
+            "type": "string"
+          },
+          {
+            "name": "total_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "mode",
+            "type": {
+              "defined": {
+                "name": "MatchMode"
+              }
+            }
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Treasury",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateConfigParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "casual_bet",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "casual_fee_bps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "betting_fee_bps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "winners_mode_is_percentage",
+            "type": {
+              "option": "bool"
+            }
+          },
+          {
+            "name": "winners_value",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "reward_percentage_bps",
+            "type": {
+              "option": "u16"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "WinnerInput",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "points",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -29,6 +29,19 @@ pub mod embedded {
         cfg.winners_value = winners_value;
         cfg.reward_percentage_bps = reward_percentage_bps;
         cfg.bump = ctx.bumps.config;
+
+        // Initialize treasury PDA
+        let treasury = &mut ctx.accounts.treasury;
+        treasury.bump = ctx.bumps.treasury;
+        Ok(())
+    }
+
+    /// Initialize treasury bump (admin only)
+    pub fn initialize_treasury_bump(ctx: Context<InitializeTreasuryBump>) -> Result<()> {
+        require_keys_eq!(ctx.accounts.config.authority, *ctx.accounts.authority.key, CustomError::Unauthorized);
+
+        let (_pda, bump) = Pubkey::find_program_address(&[b"treasury"], ctx.program_id);
+        ctx.accounts.treasury.bump = bump;
         Ok(())
     }
 
@@ -36,7 +49,6 @@ pub mod embedded {
     pub fn update_config(ctx: Context<UpdateConfig>, new_cfg: UpdateConfigParams) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
         require_keys_eq!(cfg.authority, *ctx.accounts.authority.key, CustomError::Unauthorized);
-        if let Some(cb) = new_cfg.casual_bet { cfg.casual_bet = cb; }
         if let Some(cfb) = new_cfg.casual_fee_bps { cfg.casual_fee_bps = cfb; }
         if let Some(bfb) = new_cfg.betting_fee_bps { cfg.betting_fee_bps = bfb; }
         if let Some(wm) = new_cfg.winners_mode_is_percentage { cfg.winners_mode_is_percentage = wm; }
@@ -81,7 +93,7 @@ pub mod embedded {
         ctx: Context<SettleMatch>,
         match_id: String,
         total_amount: u64,
-        fee_bps: u16,
+        total_fee: u64,
         mode: MatchMode,
         winner: Pubkey,
     ) -> Result<()> {
@@ -92,7 +104,6 @@ pub mod embedded {
         require!(treasury_balance >= total_amount, CustomError::InsufficientFunds);
 
         // Compute total fee and winner amount
-        let total_fee = ((total_amount as u128) * (fee_bps as u128)) / 10_000u128;
         let winner_amount_u128 = (total_amount as u128).checked_sub(total_fee).ok_or(CustomError::MathOverflow)?;
         let winner_amount = winner_amount_u128 as u64;
 
@@ -120,7 +131,7 @@ pub mod embedded {
         emit!(SettleEvent {
             match_id,
             total_amount,
-            fee_bps,
+            total_fee,
             mode: mode.clone(),
             winner,
             ts: now,
@@ -276,6 +287,19 @@ pub struct InitializeConfig<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
+#[derive(Accounts)]
+pub struct InitializeTreasuryBump<'info> {
+    #[account(mut, seeds=[b"config"], bump = config.bump, has_one = authority)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds=[b"treasury"], bump)]
+    pub treasury: Account<'info, Treasury>,
+
+    pub authority: Signer<'info>,
+}
+
+
 #[derive(Accounts)]
 pub struct UpdateConfig<'info> {
     #[account(mut, seeds=[b"config"], bump = config.bump)]
@@ -362,7 +386,6 @@ pub struct InsiderInput {
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct UpdateConfigParams {
-    pub casual_bet: Option<u64>,
     pub casual_fee_bps: Option<u16>,
     pub betting_fee_bps: Option<u16>,
     pub winners_mode_is_percentage: Option<bool>,
@@ -389,7 +412,7 @@ pub struct DepositEvent {
 pub struct SettleEvent {
     pub match_id: String,
     pub total_amount: u64,
-    pub fee_bps: u16,
+    pub total_fee: u16,
     pub mode: MatchMode,
     pub winner: Pubkey,
     pub ts: i64,
