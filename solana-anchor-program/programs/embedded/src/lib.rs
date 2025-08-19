@@ -29,6 +29,19 @@ pub mod embedded {
         cfg.winners_value = winners_value;
         cfg.reward_percentage_bps = reward_percentage_bps;
         cfg.bump = ctx.bumps.config;
+
+        // Initialize treasury PDA
+        let treasury = &mut ctx.accounts.treasury;
+        treasury.bump = ctx.bumps.treasury;
+        Ok(())
+    }
+
+    /// Initialize treasury bump (admin only)
+    pub fn initialize_treasury_bump(ctx: Context<InitializeTreasuryBump>) -> Result<()> {
+        require_keys_eq!(ctx.accounts.config.authority, *ctx.accounts.authority.key, CustomError::Unauthorized);
+
+        let (_pda, bump) = Pubkey::find_program_address(&[b"treasury"], ctx.program_id);
+        ctx.accounts.treasury.bump = bump;
         Ok(())
     }
 
@@ -36,7 +49,6 @@ pub mod embedded {
     pub fn update_config(ctx: Context<UpdateConfig>, new_cfg: UpdateConfigParams) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
         require_keys_eq!(cfg.authority, *ctx.accounts.authority.key, CustomError::Unauthorized);
-        if let Some(cb) = new_cfg.casual_bet { cfg.casual_bet = cb; }
         if let Some(cfb) = new_cfg.casual_fee_bps { cfg.casual_fee_bps = cfb; }
         if let Some(bfb) = new_cfg.betting_fee_bps { cfg.betting_fee_bps = bfb; }
         if let Some(wm) = new_cfg.winners_mode_is_percentage { cfg.winners_mode_is_percentage = wm; }
@@ -81,7 +93,7 @@ pub mod embedded {
         ctx: Context<SettleMatch>,
         match_id: String,
         total_amount: u64,
-        fee_bps: u16,
+        total_fee: u64,
         mode: MatchMode,
         winner: Pubkey,
     ) -> Result<()> {
@@ -92,17 +104,17 @@ pub mod embedded {
         require!(treasury_balance >= total_amount, CustomError::InsufficientFunds);
 
         // Compute total fee and winner amount
-        let total_fee = ((total_amount as u128) * (fee_bps as u128)) / 10_000u128;
-        let winner_amount_u128 = (total_amount as u128).checked_sub(total_fee).ok_or(CustomError::MathOverflow)?;
+        let winner_amount_u128 = (total_amount as u128).checked_sub(total_fee as u128).ok_or(CustomError::MathOverflow)?;
         let winner_amount = winner_amount_u128 as u64;
 
+        /*
         // Transfer winner_amount from treasury to winner
         let treasury_bump = ctx.accounts.treasury.bump;
         let seeds: &[&[u8]] = &[b"treasury", &[treasury_bump]];
 
         let ix_transfer = system_instruction::transfer(
             ctx.accounts.treasury.to_account_info().key,
-            &winner,
+            ctx.accounts.winner.key,
             winner_amount,
         );
 
@@ -110,17 +122,51 @@ pub mod embedded {
             &ix_transfer,
             &[
                 ctx.accounts.treasury.to_account_info(),
+                ctx.accounts.winner.to_account_info(),
                 ctx.accounts.system_program.to_account_info(),
             ],
             &[seeds],
         )?;
+        */
+
+        // Ensure treasury has enough lamports
+        let treasury_info = ctx.accounts.treasury.to_account_info();
+        require!(treasury_info.lamports() >= total_amount, CustomError::InsufficientFunds);
+
+        // Destination account
+        let dest_info = ctx.accounts.winner.to_account_info();
+
+        // Ensure the destination matches expected winner pubkey
+        require_keys_eq!(dest_info.key(), winner, CustomError::Unauthorized);
+
+        // Move lamports by mutating lamports directly (safe because program owns treasury)
+        {
+            let mut from_lamports = treasury_info.try_borrow_mut_lamports()?;
+            let mut to_lamports = dest_info.try_borrow_mut_lamports()?;
+
+            // read current balances (copy values)
+            let from_balance: u64 = **from_lamports;
+            let to_balance: u64 = **to_lamports;
+
+            // compute new balances
+            let new_from = from_balance
+                .checked_sub(total_amount)
+                .ok_or(CustomError::InsufficientFunds)?;
+            let new_to = to_balance
+                .checked_add(total_amount)
+                .ok_or(CustomError::MathOverflow)?;
+
+            // write back using double-deref into the RefMut
+            **from_lamports = new_from;
+            **to_lamports = new_to;
+        }
 
         // Emit settle event
         let now = Clock::get()?.unix_timestamp;
         emit!(SettleEvent {
             match_id,
             total_amount,
-            fee_bps,
+            total_fee,
             mode: mode.clone(),
             winner,
             ts: now,
@@ -276,6 +322,19 @@ pub struct InitializeConfig<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
+#[derive(Accounts)]
+pub struct InitializeTreasuryBump<'info> {
+    #[account(mut, seeds=[b"config"], bump = config.bump, has_one = authority)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds=[b"treasury"], bump)]
+    pub treasury: Account<'info, Treasury>,
+
+    pub authority: Signer<'info>,
+}
+
+
 #[derive(Accounts)]
 pub struct UpdateConfig<'info> {
     #[account(mut, seeds=[b"config"], bump = config.bump)]
@@ -302,6 +361,10 @@ pub struct SettleMatch<'info> {
 
     #[account(mut, seeds = [b"treasury"], bump = treasury.bump)]
     pub treasury: Account<'info, Treasury>,
+
+    /// CHECK: We only use the winner account to transfer funds into it.
+    #[account(mut)]
+    pub winner: UncheckedAccount<'info>,
 
     pub authority: Signer<'info>,
 
@@ -362,7 +425,6 @@ pub struct InsiderInput {
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct UpdateConfigParams {
-    pub casual_bet: Option<u64>,
     pub casual_fee_bps: Option<u16>,
     pub betting_fee_bps: Option<u16>,
     pub winners_mode_is_percentage: Option<bool>,
@@ -389,7 +451,7 @@ pub struct DepositEvent {
 pub struct SettleEvent {
     pub match_id: String,
     pub total_amount: u64,
-    pub fee_bps: u16,
+    pub total_fee: u64,
     pub mode: MatchMode,
     pub winner: Pubkey,
     pub ts: i64,

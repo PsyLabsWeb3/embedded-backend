@@ -62,6 +62,7 @@ enum MatchMode {
 enum MatchStatus {
   WAITING
   IN_PROGRESS
+  SETTLING
   FINISHED
 }
 
