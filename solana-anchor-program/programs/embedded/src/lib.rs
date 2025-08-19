@@ -104,7 +104,7 @@ pub mod embedded {
         require!(treasury_balance >= total_amount, CustomError::InsufficientFunds);
 
         // Compute total fee and winner amount
-        let winner_amount_u128 = (total_amount as u128).checked_sub(total_fee).ok_or(CustomError::MathOverflow)?;
+        let winner_amount_u128 = (total_amount as u128).checked_sub(total_fee as u128).ok_or(CustomError::MathOverflow)?;
         let winner_amount = winner_amount_u128 as u64;
 
         // Transfer winner_amount from treasury to winner
@@ -412,7 +412,7 @@ pub struct DepositEvent {
 pub struct SettleEvent {
     pub match_id: String,
     pub total_amount: u64,
-    pub total_fee: u16,
+    pub total_fee: u64,
     pub mode: MatchMode,
     pub winner: Pubkey,
     pub ts: i64,
