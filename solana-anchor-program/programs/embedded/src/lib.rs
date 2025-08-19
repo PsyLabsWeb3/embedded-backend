@@ -107,13 +107,14 @@ pub mod embedded {
         let winner_amount_u128 = (total_amount as u128).checked_sub(total_fee as u128).ok_or(CustomError::MathOverflow)?;
         let winner_amount = winner_amount_u128 as u64;
 
+        /*
         // Transfer winner_amount from treasury to winner
         let treasury_bump = ctx.accounts.treasury.bump;
         let seeds: &[&[u8]] = &[b"treasury", &[treasury_bump]];
 
         let ix_transfer = system_instruction::transfer(
             ctx.accounts.treasury.to_account_info().key,
-            &winner,
+            ctx.accounts.winner.key,
             winner_amount,
         );
 
@@ -121,10 +122,44 @@ pub mod embedded {
             &ix_transfer,
             &[
                 ctx.accounts.treasury.to_account_info(),
+                ctx.accounts.winner.to_account_info(),
                 ctx.accounts.system_program.to_account_info(),
             ],
             &[seeds],
         )?;
+        */
+
+        // Ensure treasury has enough lamports
+        let treasury_info = ctx.accounts.treasury.to_account_info();
+        require!(treasury_info.lamports() >= total_amount, CustomError::InsufficientFunds);
+
+        // Destination account
+        let dest_info = ctx.accounts.winner.to_account_info();
+
+        // Ensure the destination matches expected winner pubkey
+        require_keys_eq!(dest_info.key(), winner, CustomError::Unauthorized);
+
+        // Move lamports by mutating lamports directly (safe because program owns treasury)
+        {
+            let mut from_lamports = treasury_info.try_borrow_mut_lamports()?;
+            let mut to_lamports = dest_info.try_borrow_mut_lamports()?;
+
+            // read current balances (copy values)
+            let from_balance: u64 = **from_lamports;
+            let to_balance: u64 = **to_lamports;
+
+            // compute new balances
+            let new_from = from_balance
+                .checked_sub(total_amount)
+                .ok_or(CustomError::InsufficientFunds)?;
+            let new_to = to_balance
+                .checked_add(total_amount)
+                .ok_or(CustomError::MathOverflow)?;
+
+            // write back using double-deref into the RefMut
+            **from_lamports = new_from;
+            **to_lamports = new_to;
+        }
 
         // Emit settle event
         let now = Clock::get()?.unix_timestamp;
@@ -326,6 +361,10 @@ pub struct SettleMatch<'info> {
 
     #[account(mut, seeds = [b"treasury"], bump = treasury.bump)]
     pub treasury: Account<'info, Treasury>,
+
+    /// CHECK: We only use the winner account to transfer funds into it.
+    #[account(mut)]
+    pub winner: UncheckedAccount<'info>,
 
     pub authority: Signer<'info>,
 

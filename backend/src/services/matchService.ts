@@ -96,11 +96,12 @@ export async function completeMatch(matchId: string, winnerWallet: string) {
                 config: configPda,
                 treasury: treasuryPda,
                 authority: authorityKeypair.publicKey,
+                winner: winnerPubkey,
                 systemProgram: SystemProgram.programId,
             })
             .signers([authorityKeypair])
             .rpc();
-
+            
         // Update DB
         await prisma.$transaction(async (tx) => {
             const winner = await tx.wallet.findUnique({ where: { address: winnerWallet } });

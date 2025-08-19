@@ -368,6 +368,10 @@
           }
         },
         {
+          "name": "winner",
+          "writable": true
+        },
+        {
           "name": "authority",
           "signer": true
         },
