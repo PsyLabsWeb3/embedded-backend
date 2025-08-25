@@ -110,7 +110,13 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
   try {
     const match = await prisma.$transaction(async (tx) => {
       const openMatch = await tx.match.findFirst({
-        where: { status: 'WAITING', walletBId: null, game: game },
+        where: {
+          status: 'WAITING',
+          walletBId: null,
+          game: game,
+          mode: (mode ? mode.toUpperCase() : 'CASUAL'),
+          betAmount: betAmount || 0.50,
+        },
         orderBy: { createdAt: 'asc' },
       });
 
