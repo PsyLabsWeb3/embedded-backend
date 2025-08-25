@@ -107,28 +107,6 @@ pub mod embedded {
         let winner_amount_u128 = (total_amount as u128).checked_sub(total_fee as u128).ok_or(CustomError::MathOverflow)?;
         let winner_amount = winner_amount_u128 as u64;
 
-        /*
-        // Transfer winner_amount from treasury to winner
-        let treasury_bump = ctx.accounts.treasury.bump;
-        let seeds: &[&[u8]] = &[b"treasury", &[treasury_bump]];
-
-        let ix_transfer = system_instruction::transfer(
-            ctx.accounts.treasury.to_account_info().key,
-            ctx.accounts.winner.key,
-            winner_amount,
-        );
-
-        anchor_lang::solana_program::program::invoke_signed(
-            &ix_transfer,
-            &[
-                ctx.accounts.treasury.to_account_info(),
-                ctx.accounts.winner.to_account_info(),
-                ctx.accounts.system_program.to_account_info(),
-            ],
-            &[seeds],
-        )?;
-        */
-
         // Ensure treasury has enough lamports
         let treasury_info = ctx.accounts.treasury.to_account_info();
         require!(treasury_info.lamports() >= total_amount, CustomError::InsufficientFunds);
@@ -150,10 +128,10 @@ pub mod embedded {
 
             // compute new balances
             let new_from = from_balance
-                .checked_sub(total_amount)
+                .checked_sub(winner_amount)
                 .ok_or(CustomError::InsufficientFunds)?;
             let new_to = to_balance
-                .checked_add(total_amount)
+                .checked_add(winner_amount)
                 .ok_or(CustomError::MathOverflow)?;
 
             // write back using double-deref into the RefMut
