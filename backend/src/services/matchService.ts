@@ -1,6 +1,5 @@
 import { prisma } from '../prisma'
-import { loadKeypairFromFile, getPdas, LAMPORTS } from '../middleware/solanaUtils'
-import { fetchSolPrice } from "../services/solanaService";
+import { loadKeypairFromFile, getPdas } from '../middleware/solanaUtils'
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import path from "path";
@@ -54,26 +53,9 @@ export async function completeMatch(matchId: string, winnerWallet: string) {
         throw new Error("Match missing after claim");
     }
 
-    // Compute amounts in lamports
-    const solanaPriceInUsd = await fetchSolPrice();
-    if (!solanaPriceInUsd || solanaPriceInUsd === 0) {
-        console.error("Solana price fetch failed, reverting DB claim");
-        await prisma.match.updateMany({
-            where: { matchId, status: "SETTLING" },
-            data: { status: "IN_PROGRESS" },
-        });
-        return { ok: false, reason: "price_fetch_failed" };
-    }
-
-    const betAmountSol = Number(match.betAmount) / solanaPriceInUsd;
-    const totalAmountLamports = Math.round(betAmountSol * 2 * LAMPORTS);
-
-    const feeAmountSol = Number(match.matchFee) / solanaPriceInUsd;
-    const totalFeeLamports = Math.round(feeAmountSol * 2 * LAMPORTS);
-
     const modeArg = match.mode === 'BETTING'
-    ? { betting: {} }
-    : { casual: {} };
+        ? { betting: {} }
+        : { casual: {} };
 
     const winnerPubkey = new PublicKey(winnerWallet);
 
@@ -82,6 +64,32 @@ export async function completeMatch(matchId: string, winnerWallet: string) {
 
     // Call anchor program
     const { program, authorityKeypair } = getProviderAndProgram();
+
+    // Fetch the Config PDA account to get the fee percentage
+    const configAccount = await (program.account as any).config.fetch(configPda);
+
+    let feeBps = 2000; // Default to 20%
+    if (match.mode === 'BETTING') {
+        if ((configAccount as any).bettingFeeBps !== undefined) {
+            feeBps = Number((configAccount as any).bettingFeeBps);
+            console.log("Found bettingFeeBps field in config account:", feeBps);
+        } else {
+            throw new Error('Cannot find betting fee field on config account. Inspect configAccount keys: ' + Object.keys(configAccount).join(', '));
+        }
+    } else {
+        if ((configAccount as any).casualFeeBps !== undefined) {
+            feeBps = Number((configAccount as any).casualFeeBps);
+            console.log("Found casualFeeBps field in config account:", feeBps);
+        } else {
+            throw new Error('Cannot find casual fee field on config account. Inspect configAccount keys: ' + Object.keys(configAccount).join(', '));
+        }
+    }
+
+    // Fetch total amount and calculate fee
+    const totalAmountLamports = match.lamportsA + (match.lamportsB || BigInt(0));
+    const totalFeeLamports = totalAmountLamports * BigInt(feeBps) / BigInt(10000);
+
+    console.log(`Settling match ${matchId} with total amount ${totalAmountLamports} lamports and fee ${totalFeeLamports} lamports (fee bps: ${feeBps})`);
 
     try {
         const txSig = await program.methods
@@ -101,7 +109,7 @@ export async function completeMatch(matchId: string, winnerWallet: string) {
             })
             .signers([authorityKeypair])
             .rpc();
-            
+
         // Update DB
         await prisma.$transaction(async (tx) => {
             const winner = await tx.wallet.findUnique({ where: { address: winnerWallet } });

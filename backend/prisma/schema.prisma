@@ -43,7 +43,9 @@ model Match {
   matchFee Decimal @db.Decimal(10, 2) @default(0.10)
 
   txSigA String
+  lamportsA BigInt
   txSigB String?
+  lamportsB BigInt?
 
   status    MatchStatus
   createdAt DateTime    @default(now())
