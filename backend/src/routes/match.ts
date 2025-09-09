@@ -1,13 +1,14 @@
 import express from 'express'
 import { prisma } from '../prisma'
 import { verifySignature } from '../middleware/verifySignature'
-import { LAMPORTS } from '../middleware/solanaUtils'
+import { LAMPORTS, getPdas, getProviderAndProgram } from '../middleware/solanaUtils'
 import { fetchSolPrice } from "../services/solanaService";
 import { completeMatch } from "../services/matchService";
-import { Connection, ParsedInstruction, PartiallyDecodedInstruction } from "@solana/web3.js";
+import { Connection, ParsedInstruction, PartiallyDecodedInstruction, PublicKey } from "@solana/web3.js";
 
 const router = express.Router()
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+const ANCHOR_PROGRAM_ID = new PublicKey(process.env.ANCHOR_PROGRAM_ID!);
 
 // GET /matchesInProgress
 router.get('/matchesInProgress', async (req, res): Promise<any> => {
@@ -27,10 +28,10 @@ router.get('/matchesInProgress', async (req, res): Promise<any> => {
 router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> => {
   console.log('/registerPlayer received body:', req.body);
 
-  const { walletAddress, txSignature, game, mode, betAmount, matchFee } = req.body
+  const { walletAddress, txSignature, game, mode, region, betAmount } = req.body
 
-  if (!walletAddress || !txSignature || !game) {
-    return res.status(400).json({ error: 'Missing walletAddress, txSignature or game' })
+  if (!walletAddress || !txSignature || !game || !region) {
+    return res.status(400).json({ error: 'Missing walletAddress, txSignature, game or region' })
   }
 
   // Validate game mode and bet amounts
@@ -41,9 +42,6 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
   if (mode && mode === "Betting") {
     if (!betAmount || isNaN(betAmount) || betAmount <= 0)
       return res.status(400).json({ error: 'Invalid bet amount' });
-
-    if (!matchFee || isNaN(matchFee) || matchFee < 0)
-      return res.status(400).json({ error: 'Invalid match fee' });
   }
 
   // Verify transaction commitment = finalized
@@ -106,6 +104,34 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
     wallet = await prisma.wallet.create({ data: { address: walletAddress } })
   }
 
+  // Derive PDAs
+  const { configPda } = getPdas(ANCHOR_PROGRAM_ID);
+
+  // Call anchor program
+  const { program } = getProviderAndProgram();
+
+  // Fetch the Config PDA account to get the fee percentage
+  const configAccount = await (program.account as any).config.fetch(configPda);
+
+  let feeBps = 2000; // Default to 20%
+  if (mode === 'Betting') {
+    if ((configAccount as any).bettingFeeBps !== undefined) {
+      feeBps = Number((configAccount as any).bettingFeeBps);
+      console.log("Found bettingFeeBps field in config account:", feeBps);
+    } else {
+      throw new Error('Cannot find betting fee field on config account. Inspect configAccount keys: ' + Object.keys(configAccount).join(', '));
+    }
+  } else {
+    if ((configAccount as any).casualFeeBps !== undefined) {
+      feeBps = Number((configAccount as any).casualFeeBps);
+      console.log("Found casualFeeBps field in config account:", feeBps);
+    } else {
+      throw new Error('Cannot find casual fee field on config account. Inspect configAccount keys: ' + Object.keys(configAccount).join(', '));
+    }
+  }
+
+  let matchFee = (betAmount || 0.50) * feeBps / 10000;
+
   // Use a transaction to ensure atomicity
   try {
     const match = await prisma.$transaction(async (tx) => {
@@ -115,6 +141,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
           walletBId: null,
           game: game,
           mode: (mode ? mode.toUpperCase() : 'CASUAL'),
+          region: region,
           betAmount: betAmount || 0.50,
         },
         orderBy: { createdAt: 'asc' },
@@ -141,6 +168,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
             lamportsA: BigInt(lamportsTransferred),
             game: game,
             mode: (mode ? mode.toUpperCase() : 'CASUAL'),
+            region: region,
             betAmount: betAmount || 0.50,
             matchFee: matchFee || 0.10,
             status: 'WAITING'

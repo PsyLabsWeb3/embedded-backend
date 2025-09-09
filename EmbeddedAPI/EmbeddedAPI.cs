@@ -70,8 +70,7 @@ namespace EmbeddedAPI
         }
 
         public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
-                                                             string mode = null, decimal betAmount = null,
-                                                             decimal matchFee = null)
+                                                             string mode = null, string region = null, decimal betAmount = null)
         {
             var payload = new RegisterPayload
             {
@@ -79,8 +78,8 @@ namespace EmbeddedAPI
                 txSignature = txSignature,
                 game = game,
                 mode = mode,
-                betAmount = betAmount,
-                matchFee = matchFee
+                region = region,
+                betAmount = betAmount
             };
 
             var body = JsonUtility.ToJson(payload);
