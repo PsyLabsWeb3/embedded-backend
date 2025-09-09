@@ -19,8 +19,8 @@ namespace EmbeddedAPI
             public string txSignature;
             public string game;
             public string? mode; // Optional, can be "Casual" or "Betting"
+            public string region; // Photon region e.g., "eu", "us", "asia"
             public decimal? betAmount; // Optional, required if mode is "Betting"
-            public decimal? matchFee; // Optional, required if mode is "Betting"
         }
 
         [Serializable]
