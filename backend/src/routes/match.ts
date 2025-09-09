@@ -130,7 +130,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
     }
   }
 
-  let matchFee = (betAmount || 0.50) * feeBps / 10000;
+  let matchFee = (betAmount || 0.50) * feeBps / 10000 * 2;
   console.log(`Match fee for bet amount ${(betAmount || 0.50)} USD: ${matchFee} USD`);
 
   // Use a transaction to ensure atomicity

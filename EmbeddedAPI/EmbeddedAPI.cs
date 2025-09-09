@@ -18,8 +18,8 @@ namespace EmbeddedAPI
             public string walletAddress;
             public string txSignature;
             public string game;
-            public string? mode; // Optional, can be "Casual" or "Betting"
             public string region; // Photon region e.g., "eu", "us", "asia"
+            public string mode; // Optional, can be "Casual" or "Betting"
             public decimal? betAmount; // Optional, required if mode is "Betting"
         }
 
@@ -70,7 +70,7 @@ namespace EmbeddedAPI
         }
 
         public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
-                                                             string mode = null, string region = null, decimal betAmount = null)
+                                                             string region, string mode = null, decimal betAmount = 0.5m)
         {
             var payload = new RegisterPayload
             {
