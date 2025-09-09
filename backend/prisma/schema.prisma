@@ -39,6 +39,7 @@ model Match {
 
   game String
   mode MatchMode @default(CASUAL)
+  region String @default("eu")
   betAmount Decimal @db.Decimal(10, 2) @default(0.50)
   matchFee Decimal @db.Decimal(10, 2) @default(0.10)
 

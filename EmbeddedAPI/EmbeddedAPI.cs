@@ -18,9 +18,9 @@ namespace EmbeddedAPI
             public string walletAddress;
             public string txSignature;
             public string game;
-            public string? mode; // Optional, can be "Casual" or "Betting"
+            public string region; // Photon region e.g., "eu", "us", "asia"
+            public string mode; // Optional, can be "Casual" or "Betting"
             public decimal? betAmount; // Optional, required if mode is "Betting"
-            public decimal? matchFee; // Optional, required if mode is "Betting"
         }
 
         [Serializable]
@@ -70,8 +70,7 @@ namespace EmbeddedAPI
         }
 
         public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
-                                                             string mode = null, decimal betAmount = null,
-                                                             decimal matchFee = null)
+                                                             string region, string mode = null, decimal betAmount = 0.5m)
         {
             var payload = new RegisterPayload
             {
@@ -79,8 +78,8 @@ namespace EmbeddedAPI
                 txSignature = txSignature,
                 game = game,
                 mode = mode,
-                betAmount = betAmount,
-                matchFee = matchFee
+                region = region,
+                betAmount = betAmount
             };
 
             var body = JsonUtility.ToJson(payload);
