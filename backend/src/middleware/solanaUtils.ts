@@ -3,7 +3,6 @@ import * as anchor from "@coral-xyz/anchor";
 import fs from "fs";
 import path from "path";
 
-const ANCHOR_PROGRAM_ID = new PublicKey(process.env.ANCHOR_PROGRAM_ID!);
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 const AUTH_KEYPAIR_PATH = process.env.AUTH_KEYPAIR_PATH!;
 const PROGRAM_IDL_PATH = process.env.PROGRAM_IDL_PATH!;
