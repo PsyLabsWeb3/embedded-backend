@@ -29,19 +29,24 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
   console.log('/registerPlayer received body:', req.body);
 
   const { walletAddress, txSignature, game, mode, region, betAmount } = req.body
+  const numBetAmount = betAmount ? Number(betAmount) : null;
 
   if (!walletAddress || !txSignature || !game || !region) {
+    console.error("Missing walletAddress, txSignature, game or region");
     return res.status(400).json({ error: 'Missing walletAddress, txSignature, game or region' })
   }
 
   // Validate game mode and bet amounts
   if (mode && !['Casual', 'Betting'].includes(mode)) {
+    console.error("Invalid game mode: ", mode);
     return res.status(400).json({ error: 'Invalid game mode' });
   }
 
   if (mode && mode === "Betting") {
-    if (!betAmount || isNaN(betAmount) || betAmount <= 0)
+    if (!numBetAmount || isNaN(numBetAmount) || numBetAmount <= 0) {
+      console.error("Invalid bet amount: ", numBetAmount);
       return res.status(400).json({ error: 'Invalid bet amount' });
+    }
   }
 
   // Verify transaction commitment = finalized
@@ -83,8 +88,8 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
   }
 
   if (lamportsTransferred === null) {
-    // Calculate amount in lamports using betAmount if no transfer instruction found
-    console.log("No valid transfer instruction found in transaction. Calculating from betAmount.");
+    // Calculate amount in lamports using numBetAmount if no transfer instruction found
+    console.log("No valid transfer instruction found in transaction. Calculating from numBetAmount.");
 
     const solanaPriceInUsd = await fetchSolPrice();
     if (!solanaPriceInUsd || solanaPriceInUsd === 0) {
@@ -93,7 +98,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
       return;
     }
 
-    const betAmountSol = Number(betAmount || 0.50) / solanaPriceInUsd;
+    const betAmountSol = Number(numBetAmount || 0.50) / solanaPriceInUsd;
     lamportsTransferred = Math.round(betAmountSol * 2 * LAMPORTS);
   }
   console.log(`Lamports transferred in tx ${txSignature}: ${lamportsTransferred}`);
@@ -130,8 +135,8 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
     }
   }
 
-  let matchFee = (betAmount || 0.50) * feeBps / 10000;
-  console.log(`Match fee for bet amount ${(betAmount || 0.50)} USD: ${matchFee} USD`);
+  let matchFee = (numBetAmount || 0.50) * feeBps / 10000;
+  console.log(`Match fee for bet amount ${(numBetAmount || 0.50)} USD: ${matchFee} USD`);
 
   // Use a transaction to ensure atomicity
   try {
@@ -143,7 +148,12 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
           game: game,
           mode: (mode ? mode.toUpperCase() : 'CASUAL'),
           region: region,
-          betAmount: betAmount || 0.50,
+          betAmount: numBetAmount || 0.50,
+          walletA: {
+            address: {
+              not: walletAddress
+            }
+          }
         },
         orderBy: { createdAt: 'asc' },
       });
@@ -170,7 +180,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
             game: game,
             mode: (mode ? mode.toUpperCase() : 'CASUAL'),
             region: region,
-            betAmount: betAmount || 0.50,
+            betAmount: numBetAmount || 0.50,
             matchFee: matchFee || 0.10,
             status: 'WAITING'
           }
@@ -246,6 +256,40 @@ router.post('/matchComplete', verifySignature, async (req, res): Promise<any> =>
   }
 
   res.json({ message: "Match settled on-chain and DB updated", tx: result.txSig });
+})
+
+// POST /abortMatch
+router.post('/abortMatch', verifySignature, async (req, res): Promise<any> => {
+  console.log('/matchComplete received body:', req.body);
+
+  const { matchID, walletAddress } = req.body
+
+  if (!matchID || !walletAddress) {
+    return res.status(400).json({ error: 'Missing matchID or walletAddress' })
+  }
+
+  // Update match to ABORTED status if status = WAITING
+  const match = await prisma.match.findUnique({
+    where: { matchId: matchID },
+    include: { walletA: true, walletB: true }
+  });
+
+  if (!match)
+    return res.status(404).json({ error: "Match not found" });
+
+  if (match.status !== 'WAITING')
+    return res.status(400).json({ error: "Only WAITING matches can be aborted" });
+
+  if (match.walletA?.address !== walletAddress && match.walletB?.address !== walletAddress) {
+    return res.status(400).json({ error: "Wallet is not a participant in this match" });
+  }
+
+  await prisma.match.update({
+    where: { matchId: matchID },
+    data: { status: 'ABORTED', endedAt: new Date() }
+  });
+
+  res.json({ message: "Match aborted", matchID: matchID });
 })
 
 export default router

@@ -20,7 +20,7 @@ namespace EmbeddedAPI
             public string game;
             public string region; // Photon region e.g., "eu", "us", "asia"
             public string mode; // Optional, can be "Casual" or "Betting"
-            public float betAmount; // Optional, required if mode is "Betting"
+            public string betAmount; // Optional, required if mode is "Betting"
         }
 
         [Serializable]
@@ -38,6 +38,12 @@ namespace EmbeddedAPI
 
         [Serializable]
         private class MatchJoinPayload
+        {
+            public string matchID;
+            public string walletAddress;
+        }
+
+        private class AbortMatchPayload
         {
             public string matchID;
             public string walletAddress;
@@ -70,7 +76,7 @@ namespace EmbeddedAPI
         }
 
         public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
-                                                             string region, string mode = null, float betAmount = 0.5f)
+                                                             string region, string mode = null, string betAmount = null)
         {
             var payload = new RegisterPayload
             {
@@ -143,6 +149,26 @@ namespace EmbeddedAPI
 
             AddSecureHeaders(request, body);
 
+            await request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+                Debug.Log("Success: " + request.downloadHandler.text);
+            else
+                Debug.LogError("Error: " + request.error);
+        }
+
+        public static async Task AbortMatchAsync(string matchId, string walletAddress)
+        {
+            var payload = new AbortMatchPayload
+            {
+                matchID = matchId,
+                walletAddress = walletAddress
+            };
+
+            var body = JsonUtility.ToJson(payload);
+            var request = new UnityWebRequest(baseUrl + "/abortMatch", "POST");
+
+            AddSecureHeaders(request, body);
             await request.SendWebRequest();
 
             if (request.result == UnityWebRequest.Result.Success)
