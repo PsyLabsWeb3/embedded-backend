@@ -27,6 +27,7 @@ namespace EmbeddedAPI
         public class RegisterResponse
         {
             public string matchId;
+            public string playerNumber;
         }
 
         [Serializable]
@@ -75,7 +76,7 @@ namespace EmbeddedAPI
             request.downloadHandler = new DownloadHandlerBuffer();
         }
 
-        public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
+        public static async Task<RegisterResponse> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
                                                              string region, string mode = null, string betAmount = null)
         {
             var payload = new RegisterPayload
@@ -108,7 +109,7 @@ namespace EmbeddedAPI
                 throw new InvalidOperationException("Failed to register player and retrieve match ID.");
             }
 
-            return responseData.matchId;
+            return RegisterResponse;
         }
 
         public static async Task<string> JoinMatchAsync(string matchId, string walletAddress)

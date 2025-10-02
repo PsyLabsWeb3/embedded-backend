@@ -140,6 +140,8 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
 
   // Use a transaction to ensure atomicity
   try {
+    let playerNumber = 1;
+
     const match = await prisma.$transaction(async (tx) => {
       const openMatch = await tx.match.findFirst({
         where: {
@@ -159,6 +161,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
       });
 
       if (openMatch) {
+        playerNumber = 2;
         return await tx.match.update({
           where: { id: openMatch.id },
           data: {
@@ -189,7 +192,7 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
     });
 
     console.log(`Player ${walletAddress} registered in match ${match.matchId}`);
-    res.json({ matchId: match.matchId });
+    res.json({ matchId: match.matchId, playerNumber: playerNumber });
   } catch (err) {
     console.error('[registerPlayer] Error:', err);
     res.status(500).json({ error: 'Failed to register player' });
@@ -260,7 +263,7 @@ router.post('/matchComplete', verifySignature, async (req, res): Promise<any> =>
 
 // POST /abortMatch
 router.post('/abortMatch', verifySignature, async (req, res): Promise<any> => {
-  console.log('/matchComplete received body:', req.body);
+  console.log('/abortMatch received body:', req.body);
 
   const { matchID, walletAddress } = req.body
 
@@ -277,8 +280,8 @@ router.post('/abortMatch', verifySignature, async (req, res): Promise<any> => {
   if (!match)
     return res.status(404).json({ error: "Match not found" });
 
-  if (match.status !== 'WAITING')
-    return res.status(400).json({ error: "Only WAITING matches can be aborted" });
+  if (match.status !== 'WAITING' && match.status !== 'IN_PROGRESS')
+    return res.status(400).json({ error: "Match can't be aborted" });
 
   if (match.walletA?.address !== walletAddress && match.walletB?.address !== walletAddress) {
     return res.status(400).json({ error: "Wallet is not a participant in this match" });
@@ -289,6 +292,7 @@ router.post('/abortMatch', verifySignature, async (req, res): Promise<any> => {
     data: { status: 'ABORTED', endedAt: new Date() }
   });
 
+  console.log('Match aborted:', matchID);
   res.json({ message: "Match aborted", matchID: matchID });
 })
 
