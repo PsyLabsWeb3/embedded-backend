@@ -2,7 +2,9 @@ import { prisma } from '../prisma'
 import { getPdas, getProviderAndProgram } from '../middleware/solanaUtils'
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
+import { Connection, TransactionMessage } from "@solana/web3.js";
 
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 const ANCHOR_PROGRAM_ID = new PublicKey(process.env.ANCHOR_PROGRAM_ID!);
 
 export async function completeMatch(matchId: string, winnerWallet: string) {
@@ -130,6 +132,79 @@ export async function completeMatch(matchId: string, winnerWallet: string) {
         await prisma.match.updateMany({
             where: { matchId, status: "SETTLING" },
             data: { status: "IN_PROGRESS" },
+        });
+        return { ok: false, error: err };
+    }
+}
+
+export async function refundMatch(matchId: string, walletAddress: string, amountLamports: number) {
+    // Derive PDAs
+    const { configPda, treasuryPda } = getPdas(ANCHOR_PROGRAM_ID);
+
+    // Call anchor program
+    const { program, authorityKeypair } = getProviderAndProgram();
+
+    const conn = new Connection(SOLANA_RPC_URL, "finalized");
+    const latestBlockhash = await conn.getLatestBlockhash();
+
+    const playerPk = new PublicKey(walletAddress);
+
+    // Calculate transaction fee
+    const refundIx = await program.methods
+        .refundEntry(
+            matchId,
+            playerPk,
+            new anchor.BN(amountLamports)
+        )
+        .accounts({
+            config: configPda,
+            treasury: treasuryPda,
+            player: playerPk,
+            authority: authorityKeypair.publicKey,
+            systemProgram: SystemProgram.programId,
+        })
+        .instruction();
+
+    const messageV0 = new TransactionMessage({
+        payerKey: authorityKeypair.publicKey,
+        recentBlockhash: latestBlockhash.blockhash,
+        instructions: [refundIx],
+    }).compileToV0Message();
+
+    const feeResp = await conn.getFeeForMessage(messageV0);
+    const txFeeLamports = feeResp.value ?? 5000;
+
+    // Deduct fee from refund amount
+    console.log(`Deducting ${txFeeLamports} lamports as fee from the total ${amountLamports} refund.`);
+    const refundAmount = Math.max(0, Number(amountLamports) - txFeeLamports);
+
+    console.log(`Refunding ${refundAmount} lamports to wallet ${walletAddress} from match ${matchId}`);
+
+    try {
+        const txSig = await program.methods
+            .refundEntry(
+                matchId,
+                playerPk,
+                new anchor.BN(refundAmount)
+            )
+            .accounts({
+                config: configPda,
+                treasury: treasuryPda,
+                player: playerPk,
+                authority: authorityKeypair.publicKey,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([authorityKeypair])
+            .rpc();
+
+        console.log(`Refund successful for match: ${matchId}`);
+        return { ok: true, txSig };
+    } catch (err) {
+        console.error("Settle failed, reverting DB abort:", err);
+
+        await prisma.match.updateMany({
+            where: { matchId, status: "ABORTED" },
+            data: { status: "WAITING" },
         });
         return { ok: false, error: err };
     }

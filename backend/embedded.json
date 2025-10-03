@@ -516,6 +516,19 @@
       ]
     },
     {
+      "name": "RefundEvent",
+      "discriminator": [
+        176,
+        159,
+        218,
+        59,
+        94,
+        213,
+        129,
+        218
+      ]
+    },
+    {
       "name": "SettleEvent",
       "discriminator": [
         14,
@@ -670,6 +683,30 @@
           },
           {
             "name": "Betting"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RefundEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "match_id",
+            "type": "string"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
           }
         ]
       }

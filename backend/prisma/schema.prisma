@@ -70,6 +70,12 @@ enum MatchStatus {
   ABORTED
 }
 
+model EntryFeeTransaction {
+  id        Int      @id @default(autoincrement())
+  txSig     String   @unique
+  createdAt DateTime    @default(now())
+}
+
 model SeasonResult {
   id        Int      @id @default(autoincrement())
   season    Int
