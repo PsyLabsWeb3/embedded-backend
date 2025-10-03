@@ -276,14 +276,19 @@ router.post('/abortMatch', verifySignature, async (req, res): Promise<any> => {
     include: { walletA: true, walletB: true }
   });
 
-  if (!match)
+  if (!match) {
+    console.error('Match not found');
     return res.status(404).json({ error: "Match not found" });
+  }
 
   // Only abort if status = WAITING & walletAddress = player 1
-  if (match.status !== 'WAITING')
+  if (match.status !== 'WAITING') {
+    console.error("Match can't be aborted");
     return res.status(400).json({ error: "Match can't be aborted" });
+  }
 
   if (match.walletA?.address !== walletAddress) {
+    console.error('Wallet is not player 1 in this match');
     return res.status(400).json({ error: "Wallet is not player 1 in this match" });
   }
 
@@ -327,8 +332,11 @@ router.post('/abortMatch', verifySignature, async (req, res): Promise<any> => {
   }
 
   if (lamportsTransferred === null) {
+    console.error('Lamports transferred not found');
     return res.status(400).json({ error: "Lamports transferred not found" });
   }
+
+  console.log("Lamports transfered in match to abort: " + lamportsTransferred);
 
   // Update match to ABORTED status
   await prisma.match.update({

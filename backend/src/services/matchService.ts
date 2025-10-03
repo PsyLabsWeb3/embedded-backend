@@ -138,49 +138,49 @@ export async function completeMatch(matchId: string, winnerWallet: string) {
 }
 
 export async function refundMatch(matchId: string, walletAddress: string, amountLamports: number) {
-    // Derive PDAs
-    const { configPda, treasuryPda } = getPdas(ANCHOR_PROGRAM_ID);
-
-    // Call anchor program
-    const { program, authorityKeypair } = getProviderAndProgram();
-
-    const conn = new Connection(SOLANA_RPC_URL, "finalized");
-    const latestBlockhash = await conn.getLatestBlockhash();
-
-    const playerPk = new PublicKey(walletAddress);
-
-    // Calculate transaction fee
-    const refundIx = await program.methods
-        .refundEntry(
-            matchId,
-            playerPk,
-            new anchor.BN(amountLamports)
-        )
-        .accounts({
-            config: configPda,
-            treasury: treasuryPda,
-            player: playerPk,
-            authority: authorityKeypair.publicKey,
-            systemProgram: SystemProgram.programId,
-        })
-        .instruction();
-
-    const messageV0 = new TransactionMessage({
-        payerKey: authorityKeypair.publicKey,
-        recentBlockhash: latestBlockhash.blockhash,
-        instructions: [refundIx],
-    }).compileToV0Message();
-
-    const feeResp = await conn.getFeeForMessage(messageV0);
-    const txFeeLamports = feeResp.value ?? 5000;
-
-    // Deduct fee from refund amount
-    console.log(`Deducting ${txFeeLamports} lamports as fee from the total ${amountLamports} refund.`);
-    const refundAmount = Math.max(0, Number(amountLamports) - txFeeLamports);
-
-    console.log(`Refunding ${refundAmount} lamports to wallet ${walletAddress} from match ${matchId}`);
-
     try {
+        // Derive PDAs
+        const { configPda, treasuryPda } = getPdas(ANCHOR_PROGRAM_ID);
+
+        // Call anchor program
+        const { program, authorityKeypair } = getProviderAndProgram();
+
+        const conn = new Connection(SOLANA_RPC_URL, "finalized");
+        const latestBlockhash = await conn.getLatestBlockhash();
+
+        const playerPk = new PublicKey(walletAddress);
+
+        // Calculate transaction fee
+        const refundIx = await program.methods
+            .refundEntry(
+                matchId,
+                playerPk,
+                new anchor.BN(amountLamports)
+            )
+            .accounts({
+                config: configPda,
+                treasury: treasuryPda,
+                player: playerPk,
+                authority: authorityKeypair.publicKey,
+                systemProgram: SystemProgram.programId,
+            })
+            .instruction();
+
+        const messageV0 = new TransactionMessage({
+            payerKey: authorityKeypair.publicKey,
+            recentBlockhash: latestBlockhash.blockhash,
+            instructions: [refundIx],
+        }).compileToV0Message();
+
+        const feeResp = await conn.getFeeForMessage(messageV0);
+        const txFeeLamports = feeResp.value ?? 5000;
+
+        // Deduct fee from refund amount
+        console.log(`Deducting ${txFeeLamports} lamports as fee from the total ${amountLamports} refund.`);
+        const refundAmount = Math.max(0, Number(amountLamports) - txFeeLamports);
+
+        console.log(`Refunding ${refundAmount} lamports to wallet ${walletAddress} from match ${matchId}`);
+
         const txSig = await program.methods
             .refundEntry(
                 matchId,
