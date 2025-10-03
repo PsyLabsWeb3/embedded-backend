@@ -158,8 +158,10 @@ namespace EmbeddedAPI
                 Debug.LogError("Error: " + request.error);
         }
 
-        public static async Task AbortMatchAsync(string matchId, string walletAddress)
+        public static async Task<Boolean> AbortMatchAsync(string matchId, string walletAddress)
         {
+            var success = false;
+
             var payload = new AbortMatchPayload
             {
                 matchID = matchId,
@@ -173,9 +175,16 @@ namespace EmbeddedAPI
             await request.SendWebRequest();
 
             if (request.result == UnityWebRequest.Result.Success)
+            {
+                success = true;
                 Debug.Log("Success: " + request.downloadHandler.text);
+            }
             else
+            {
                 Debug.LogError("Error: " + request.error);
+            }
+
+            return success;
         }
     }
 }
