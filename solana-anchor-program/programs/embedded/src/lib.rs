@@ -300,64 +300,64 @@ pub mod embedded {
 
         Ok(())
     }
-}
 
-/// Refund an entry fee from the treasury to a player
-/// Admin-only (config authority)
-pub fn refund_entry(
-    ctx: Context<RefundEntry>,
-    match_id: String,
-    player: Pubkey,
-    amount: u64,
-) -> Result<()> {
-    // Only the configured authority can refund
-    require_keys_eq!(
-        ctx.accounts.config.authority,
-        *ctx.accounts.authority.key,
-        CustomError::Unauthorized
-    );
+    /// Refund an entry fee from the treasury to a player
+    /// Admin-only (config authority)
+    pub fn refund_entry(
+        ctx: Context<RefundEntry>,
+        match_id: String,
+        player: Pubkey,
+        amount: u64,
+    ) -> Result<()> {
+        // Only the configured authority can refund
+        require_keys_eq!(
+            ctx.accounts.config.authority,
+            *ctx.accounts.authority.key,
+            CustomError::Unauthorized
+        );
 
-    // Passed account must match the provided player pubkey
-    require_keys_eq!(ctx.accounts.player.key(), player, CustomError::Unauthorized);
+        // Passed account must match the provided player pubkey
+        require_keys_eq!(ctx.accounts.player.key(), player, CustomError::Unauthorized);
 
-    // Check sufficient funds
-    let treasury_info = ctx.accounts.treasury.to_account_info();
-    require!(treasury_info.lamports() >= amount, CustomError::InsufficientFunds);
+        // Check sufficient funds
+        let treasury_info = ctx.accounts.treasury.to_account_info();
+        require!(treasury_info.lamports() >= amount, CustomError::InsufficientFunds);
 
-    // Player info
-    let dest_info = ctx.accounts.player.to_account_info();
+        // Player info
+        let dest_info = ctx.accounts.player.to_account_info();
 
-    // Move lamports by mutating lamports directly (safe because program owns treasury)
-    {
-        let mut from_lamports = treasury_info.try_borrow_mut_lamports()?;
-        let mut to_lamports = dest_info.try_borrow_mut_lamports()?;
+        // Move lamports by mutating lamports directly (safe because program owns treasury)
+        {
+            let mut from_lamports = treasury_info.try_borrow_mut_lamports()?;
+            let mut to_lamports = dest_info.try_borrow_mut_lamports()?;
 
-        // read current balances (copy values)
-        let from_balance: u64 = **from_lamports;
-        let to_balance: u64 = **to_lamports;
+            // read current balances (copy values)
+            let from_balance: u64 = **from_lamports;
+            let to_balance: u64 = **to_lamports;
 
-        // compute new balances
-        let new_from = from_balance
-            .checked_sub(amount)
-            .ok_or(CustomError::InsufficientFunds)?;
-        let new_to = to_balance
-            .checked_add(amount)
-            .ok_or(CustomError::MathOverflow)?;
+            // compute new balances
+            let new_from = from_balance
+                .checked_sub(amount)
+                .ok_or(CustomError::InsufficientFunds)?;
+            let new_to = to_balance
+                .checked_add(amount)
+                .ok_or(CustomError::MathOverflow)?;
 
-        // write back using double-deref into the RefMut
-        **from_lamports = new_from;
-        **to_lamports = new_to;
+            // write back using double-deref into the RefMut
+            **from_lamports = new_from;
+            **to_lamports = new_to;
+        }
+
+        // Emit event
+        emit!(RefundEvent {
+            match_id,
+            player,
+            amount,
+            ts: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
     }
-
-    // Emit event
-    emit!(RefundEvent {
-        match_id,
-        player,
-        amount,
-        ts: Clock::get()?.unix_timestamp,
-    });
-
-    Ok(())
 }
 
 /// ---------- Contexts & Accounts ----------
