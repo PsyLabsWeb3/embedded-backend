@@ -67,6 +67,13 @@ enum MatchStatus {
   IN_PROGRESS
   SETTLING
   FINISHED
+  ABORTED
+}
+
+model EntryFeeTransaction {
+  id        Int      @id @default(autoincrement())
+  txSig     String   @unique
+  createdAt DateTime    @default(now())
 }
 
 model SeasonResult {

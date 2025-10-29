@@ -20,13 +20,14 @@ namespace EmbeddedAPI
             public string game;
             public string region; // Photon region e.g., "eu", "us", "asia"
             public string mode; // Optional, can be "Casual" or "Betting"
-            public float betAmount; // Optional, required if mode is "Betting"
+            public string betAmount; // Optional, required if mode is "Betting"
         }
 
         [Serializable]
         public class RegisterResponse
         {
             public string matchId;
+            public string playerNumber;
         }
 
         [Serializable]
@@ -38,6 +39,12 @@ namespace EmbeddedAPI
 
         [Serializable]
         private class MatchJoinPayload
+        {
+            public string matchID;
+            public string walletAddress;
+        }
+
+        private class AbortMatchPayload
         {
             public string matchID;
             public string walletAddress;
@@ -69,8 +76,8 @@ namespace EmbeddedAPI
             request.downloadHandler = new DownloadHandlerBuffer();
         }
 
-        public static async Task<string> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
-                                                             string region, string mode = null, float betAmount = 0.5f)
+        public static async Task<RegisterResponse> RegisterPlayerAsync(string walletAddress, string txSignature, string game,
+                                                             string region, string mode = null, string betAmount = null)
         {
             var payload = new RegisterPayload
             {
@@ -102,7 +109,7 @@ namespace EmbeddedAPI
                 throw new InvalidOperationException("Failed to register player and retrieve match ID.");
             }
 
-            return responseData.matchId;
+            return RegisterResponse;
         }
 
         public static async Task<string> JoinMatchAsync(string matchId, string walletAddress)
@@ -149,6 +156,35 @@ namespace EmbeddedAPI
                 Debug.Log("Success: " + request.downloadHandler.text);
             else
                 Debug.LogError("Error: " + request.error);
+        }
+
+        public static async Task<Boolean> AbortMatchAsync(string matchId, string walletAddress)
+        {
+            var success = false;
+
+            var payload = new AbortMatchPayload
+            {
+                matchID = matchId,
+                walletAddress = walletAddress
+            };
+
+            var body = JsonUtility.ToJson(payload);
+            var request = new UnityWebRequest(baseUrl + "/abortMatch", "POST");
+
+            AddSecureHeaders(request, body);
+            await request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                success = true;
+                Debug.Log("Success: " + request.downloadHandler.text);
+            }
+            else
+            {
+                Debug.LogError("Error: " + request.error);
+            }
+
+            return success;
         }
     }
 }

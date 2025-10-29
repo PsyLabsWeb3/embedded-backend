@@ -1,8 +1,27 @@
+use solana_security_txt::security_txt;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     system_instruction,
     program::{invoke, invoke_signed},
 };
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    // Name of the Project
+    name: "Embedded",
+
+    // Project Homepage
+    project_url: "https://embedded.games",
+
+    // Contact Methods
+    contacts: "mailto:embedded.psylabs@gmail.com",
+
+    // Public disclosure policy URL
+    policy: "https://embedded.games",
+
+    // Team Preferred Languages
+    preferred_languages: "en,es"
+}
 
 declare_id!("BUQFRUJECRCADvdtStPUgcBgnvcNZhSWbuqBraPWPKf8");
 
@@ -281,6 +300,64 @@ pub mod embedded {
 
         Ok(())
     }
+
+    /// Refund an entry fee from the treasury to a player
+    /// Admin-only (config authority)
+    pub fn refund_entry(
+        ctx: Context<RefundEntry>,
+        match_id: String,
+        player: Pubkey,
+        amount: u64,
+    ) -> Result<()> {
+        // Only the configured authority can refund
+        require_keys_eq!(
+            ctx.accounts.config.authority,
+            *ctx.accounts.authority.key,
+            CustomError::Unauthorized
+        );
+
+        // Passed account must match the provided player pubkey
+        require_keys_eq!(ctx.accounts.player.key(), player, CustomError::Unauthorized);
+
+        // Check sufficient funds
+        let treasury_info = ctx.accounts.treasury.to_account_info();
+        require!(treasury_info.lamports() >= amount, CustomError::InsufficientFunds);
+
+        // Player info
+        let dest_info = ctx.accounts.player.to_account_info();
+
+        // Move lamports by mutating lamports directly (safe because program owns treasury)
+        {
+            let mut from_lamports = treasury_info.try_borrow_mut_lamports()?;
+            let mut to_lamports = dest_info.try_borrow_mut_lamports()?;
+
+            // read current balances (copy values)
+            let from_balance: u64 = **from_lamports;
+            let to_balance: u64 = **to_lamports;
+
+            // compute new balances
+            let new_from = from_balance
+                .checked_sub(amount)
+                .ok_or(CustomError::InsufficientFunds)?;
+            let new_to = to_balance
+                .checked_add(amount)
+                .ok_or(CustomError::MathOverflow)?;
+
+            // write back using double-deref into the RefMut
+            **from_lamports = new_from;
+            **to_lamports = new_to;
+        }
+
+        // Emit event
+        emit!(RefundEvent {
+            match_id,
+            player,
+            amount,
+            ts: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
+    }
 }
 
 /// ---------- Contexts & Accounts ----------
@@ -356,6 +433,23 @@ pub struct DistributeRewards<'info> {
 
     #[account(mut, seeds=[b"treasury"], bump = treasury.bump)]
     pub treasury: Account<'info, Treasury>,
+
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RefundEntry<'info> {
+    #[account(mut, seeds=[b"config"], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds=[b"treasury"], bump = treasury.bump)]
+    pub treasury: Account<'info, Treasury>,
+
+    /// CHECK: destination of the refund; only used to receive lamports
+    #[account(mut)]
+    pub player: UncheckedAccount<'info>,
 
     pub authority: Signer<'info>,
 
@@ -438,6 +532,14 @@ pub struct SettleEvent {
 #[event]
 pub struct DistributedRewardsEvent {
     pub distributed_reward_pool: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct RefundEvent {
+    pub match_id: String,
+    pub player: Pubkey,
+    pub amount: u64,
     pub ts: i64,
 }
 
