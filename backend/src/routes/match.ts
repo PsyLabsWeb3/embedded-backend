@@ -198,6 +198,116 @@ router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> =
   }
 })
 
+// POST /registerPlayerPvE
+router.post('/registerPlayerPvE', verifySignature, async (req, res): Promise<any> => {
+  console.log('/registerPlayerPvE received body:', req.body);
+
+  const { walletAddress, txSignature, game } = req.body
+
+  if (!walletAddress || !txSignature || !game) {
+    return res.status(400).json({ error: 'Missing walletAddress, txSignature or game' })
+  }
+
+  // Verify transaction uniqueness
+   try {
+    await prisma.entryFeeTransaction.create({
+      data: { txSig: txSignature },
+    });
+  } catch (e: any) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      console.error("Transaction already processed.");
+      return res.status(400).json({ error: 'Transaction already processed' });
+    }
+    console.error("Error while registering transaction: ", e);
+    return res.status(500).json({ error: "Error while registering transaction" });
+  }
+
+  // Verify transaction commitment = finalized
+  const conn = new Connection(SOLANA_RPC_URL, "finalized");
+
+  const tx = await conn.getParsedTransaction(txSignature, { maxSupportedTransactionVersion: 0 });
+  if (!tx) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({ error: 'Fee deposit not found' });
+  }
+
+  if (!tx.meta || tx.meta.err) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({ error: 'Fee deposit transaction not finalized' });
+  }
+
+  // Verify lamports transferred in tx
+  const parsedTx = tx as ParsedTransactionWithMeta;
+  const anyT = findAnyTransfer(parsedTx);
+  if (!anyT) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({ error: "Lamports transfered not found in transaction" });
+  }
+
+  // Verify transfer destination
+  const toTreasury = findTransferToDest(parsedTx, treasuryPda.toBase58());
+  if (!toTreasury) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({
+      error: "Deposit destination mismatch (not treasury PDA)",
+      details: { expectedDestination: treasuryPda.toBase58(), sampleFound: anyT.to },
+    });
+  }
+
+  // Verify transfer origin wallet
+  const fromPlayerToTreasury = findTransferFromTo(
+    parsedTx,
+    walletAddress,
+    treasuryPda.toBase58()
+  );
+  if (!fromPlayerToTreasury) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({
+      error: "Deposit sender mismatch (not player wallet)",
+      details: { expectedSender: walletAddress, destination: treasuryPda.toBase58() },
+    });
+  }
+
+  const lamportsTransferred = fromPlayerToTreasury.lamports;
+  console.log(`Lamports transferred in tx ${txSignature}: ${lamportsTransferred}`);
+
+  // Find or create wallet
+  let wallet = await prisma.wallet.findUnique({ where: { address: walletAddress } })
+  if (wallet) {
+    await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { points: { increment: 1 } },
+    });
+  } else {
+    wallet = await prisma.wallet.create({ data: { address: walletAddress, points: 1 } })
+  }
+
+  // Use a transaction to ensure atomicity
+  try {
+    const match = await prisma.$transaction(async (tx) => {
+      const matchId = crypto.randomUUID();
+      return await tx.match.create({
+        data: {
+          matchId,
+          walletA: { connect: { id: wallet.id } },
+          txSigA: txSignature,
+          lamportsA: BigInt(lamportsTransferred),
+          game: game,
+          mode: 'PVE',
+          betAmount: 0,
+          status: 'FINISHED'
+        }
+      });
+    });
+
+    console.log(`Player ${walletAddress} registered in PvE match ${match.matchId}`);
+    res.json({ matchId: match.matchId });
+  } catch (err) {
+    console.error('[registerPlayerPvE] Error:', err);
+    res.status(500).json({ error: 'Failed to register player for PvE match' });
+  }
+})
+
 // POST /matchJoin
 router.post('/matchJoin', verifySignature, async (req, res): Promise<any> => {
   console.log('/matchJoin received body:', req.body);

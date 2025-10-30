@@ -104,18 +104,25 @@ router.get('/matchHistory', /* verifySignature, */ async (req, res): Promise<any
     });
 
     const history = matches.map(match => {
-      const opponent = match.walletA.address === walletAddress
-        ? match.walletB?.address
-        : match.walletA?.address;
+      const opponent = match.mode === 'PVE'
+      ? 'Environment'
+      : match.walletA.address === walletAddress
+          ? match.walletB?.address
+          : match.walletA?.address;
 
-      const result = match.winnerWallet?.address === walletAddress ? 'WIN' : 'LOSS';
+      const result = match.mode === 'PVE' || match.winnerWallet?.address === walletAddress ? 'WIN' : 'LOSS';
 
-      const mode = match.mode === 'CASUAL' ? 'Casual' : 'Betting';
+      const mode = match.mode === 'CASUAL' ? 'Casual' : match.mode === 'PVE' ? 'PvE' : 'Betting';
 
-      const amount = result === 'LOSS'
-        ? Number(match.betAmount)
-        : (Number(match.betAmount) * 2) - (Number(match.matchFee) * 2);
-        
+      let amount;
+      if(match.mode === 'PVE') {
+        amount = 1;
+      } else {
+        amount = result === 'LOSS'
+          ? Number(match.betAmount)
+          : (Number(match.betAmount) * 2) - (Number(match.matchFee) * 2);
+      }
+      
       const formattedAmount = Number(amount).toFixed(2);
 
       return {

@@ -31,6 +31,20 @@ namespace EmbeddedAPI
         }
 
         [Serializable]
+        public class RegisterPvEPayload
+        {
+            public string walletAddress;
+            public string txSignature;
+            public string game;
+        }
+
+        [Serializable]
+        public class RegisterPvEResponse
+        {
+            public string matchId;
+        }
+
+        [Serializable]
         public class MatchCompletePayload
         {
             public string matchID;
@@ -109,7 +123,7 @@ namespace EmbeddedAPI
                 throw new InvalidOperationException("Failed to register player and retrieve match ID.");
             }
 
-            return RegisterResponse;
+            return responseData;
         }
 
         public static async Task<string> JoinMatchAsync(string matchId, string walletAddress)
@@ -134,6 +148,38 @@ namespace EmbeddedAPI
             }
 
             return request.downloadHandler.text;
+        }
+
+        public static async Task<RegisterPvEResponse> RegisterPlayerPvEAsync(string walletAddress, string txSignature, string game)
+        {
+            var payload = new RegisterPvEPayload
+            {
+                walletAddress = walletAddress,
+                txSignature = txSignature,
+                game = game
+            };
+
+            var body = JsonUtility.ToJson(payload);
+            var request = new UnityWebRequest(baseUrl + "/registerPlayerPvE", "POST");
+
+            AddSecureHeaders(request, body);
+
+            await request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError("Error: " + request.error);
+                throw new InvalidOperationException($"Failed to register player and retrieve match ID.");
+            }
+
+            RegisterResponse responseData = JsonUtility.FromJson<RegisterPvEResponse>(request.downloadHandler.text);
+
+            if (string.IsNullOrEmpty(responseData.matchId))
+            {
+                throw new InvalidOperationException("Failed to register player and retrieve match ID.");
+            }
+
+            return responseData;
         }
 
         public static async Task ReportMatchResultAsync(string matchId, string winnerWallet)
