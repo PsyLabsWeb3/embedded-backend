@@ -295,7 +295,8 @@ router.post('/registerPlayerPvE', verifySignature, async (req, res): Promise<any
           game: game,
           mode: 'PVE',
           betAmount: 0,
-          status: 'FINISHED'
+          status: 'FINISHED',
+          startedAt: new Date()
         }
       });
     });
