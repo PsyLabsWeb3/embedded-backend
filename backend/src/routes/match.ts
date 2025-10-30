@@ -208,49 +208,67 @@ router.post('/registerPlayerPvE', verifySignature, async (req, res): Promise<any
     return res.status(400).json({ error: 'Missing walletAddress, txSignature or game' })
   }
 
+  // Verify transaction uniqueness
+   try {
+    await prisma.entryFeeTransaction.create({
+      data: { txSig: txSignature },
+    });
+  } catch (e: any) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      console.error("Transaction already processed.");
+      return res.status(400).json({ error: 'Transaction already processed' });
+    }
+    console.error("Error while registering transaction: ", e);
+    return res.status(500).json({ error: "Error while registering transaction" });
+  }
+
   // Verify transaction commitment = finalized
   const conn = new Connection(SOLANA_RPC_URL, "finalized");
 
   const tx = await conn.getParsedTransaction(txSignature, { maxSupportedTransactionVersion: 0 });
   if (!tx) {
+    deleteEntryFeeTx(txSignature);
     return res.status(400).json({ error: 'Fee deposit not found' });
   }
 
   if (!tx.meta || tx.meta.err) {
+    deleteEntryFeeTx(txSignature);
     return res.status(400).json({ error: 'Fee deposit transaction not finalized' });
   }
 
   // Verify lamports transferred in tx
-  let lamportsTransferred = null;
-
-  const inspectInstructions = (instructions: (ParsedInstruction | PartiallyDecodedInstruction)[]) => {
-    for (const ix of instructions) {
-      if ('parsed' in ix) {
-        const p = ix as ParsedInstruction;
-        if (p.program === 'system' && p.parsed?.type === 'transfer') {
-          return Number((p.parsed.info as any).lamports);
-        }
-      }
-    }
-    return null;
-  };
-
-  const top = tx.transaction.message.instructions as (ParsedInstruction | PartiallyDecodedInstruction)[];
-  let lamports = inspectInstructions(top);
-  if (lamports) lamportsTransferred = lamports;
-
-  if (tx.meta.innerInstructions) {
-    for (const inner of tx.meta.innerInstructions) {
-      lamports = inspectInstructions(inner.instructions as (ParsedInstruction | PartiallyDecodedInstruction)[]);
-      if (lamports) lamportsTransferred = lamports;
-    }
+  const parsedTx = tx as ParsedTransactionWithMeta;
+  const anyT = findAnyTransfer(parsedTx);
+  if (!anyT) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({ error: "Lamports transfered not found in transaction" });
   }
 
-  if (lamportsTransferred === null) {
-    console.log("No valid transfer instruction found in transaction.");
-    return res.status(400).json({ error: 'Transaction amount not found in the transaction.' });
+  // Verify transfer destination
+  const toTreasury = findTransferToDest(parsedTx, treasuryPda.toBase58());
+  if (!toTreasury) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({
+      error: "Deposit destination mismatch (not treasury PDA)",
+      details: { expectedDestination: treasuryPda.toBase58(), sampleFound: anyT.to },
+    });
   }
 
+  // Verify transfer origin wallet
+  const fromPlayerToTreasury = findTransferFromTo(
+    parsedTx,
+    walletAddress,
+    treasuryPda.toBase58()
+  );
+  if (!fromPlayerToTreasury) {
+    deleteEntryFeeTx(txSignature);
+    return res.status(400).json({
+      error: "Deposit sender mismatch (not player wallet)",
+      details: { expectedSender: walletAddress, destination: treasuryPda.toBase58() },
+    });
+  }
+
+  const lamportsTransferred = fromPlayerToTreasury.lamports;
   console.log(`Lamports transferred in tx ${txSignature}: ${lamportsTransferred}`);
 
   // Find or create wallet
