@@ -60,6 +60,7 @@ model Match {
 enum MatchMode {
   CASUAL
   BETTING
+  PVE
 }
 
 enum MatchStatus {
