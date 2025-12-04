@@ -172,135 +172,6 @@ pub mod embedded {
         Ok(())
     }
 
-    /// Distribute rewards from treasury based on winners array (points-based).
-    /// Admin Only (config authority)
-    pub fn distribute_rewards<'info>(
-        ctx: Context<'_, '_, '_, 'info, DistributeRewards<'info>>,
-        winners: Vec<WinnerInput>,
-        insiders: Vec<InsiderInput>
-    ) -> Result<()> {
-        require_keys_eq!(ctx.accounts.config.authority, *ctx.accounts.authority.key, CustomError::Unauthorized);
-
-        // Treasury balance (lamports)
-        let treasury_lamports = ctx.accounts.treasury.to_account_info().lamports() as u128;
-        let cfg = &ctx.accounts.config;
-
-        // Reward pool = treasury * reward_percentage_bps / 10000
-        let reward_pool = (treasury_lamports * (cfg.reward_percentage_bps as u128)) / 10_000u128;
-
-        // Sum points
-        let total_points: u128 = winners.iter().map(|w| w.points as u128).sum();
-        require!(total_points > 0, CustomError::NoPoints);
-
-        // Ensure remaining_accounts length is enough:
-        let winners_count = winners.len();
-        let insiders_count = insiders.len();
-        let expected_accounts = winners_count + insiders_count;
-        require!(
-            ctx.remaining_accounts.len() >= expected_accounts,
-            CustomError::MissingRemainingAccounts
-        );
-
-        // Treasury PDA seeds
-        let treasury_bump = ctx.accounts.treasury.bump;
-        let seeds: &[&[u8]] = &[b"treasury", &[treasury_bump]];
-
-        // Distribute to winners
-        let mut distributed: u128 = 0;
-        
-        for (i, w) in winners.iter().enumerate() {
-            // Calculate share
-            let share = (reward_pool * (w.points as u128)) / total_points;
-            if share == 0 {
-                continue;
-            }
-
-            let dest_info = &ctx.remaining_accounts[i];
-
-            if dest_info.key != &w.wallet {
-                return Err(error!(CustomError::Unauthorized));
-            }
-
-            // Transfer share from treasury to winner
-            let ix = system_instruction::transfer(
-                ctx.accounts.treasury.to_account_info().key,
-                dest_info.key,
-                share as u64,
-            );
-            anchor_lang::solana_program::program::invoke_signed(
-                &ix,
-                &[
-                    ctx.accounts.treasury.to_account_info(),
-                    dest_info.clone(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-                &[seeds],
-            )?;
-
-            distributed = distributed.checked_add(share).ok_or(CustomError::MathOverflow)?;
-        }
-
-        let remaining_after_winners = treasury_lamports
-            .checked_sub(distributed)
-            .ok_or(CustomError::MathOverflow)?;
-
-        if remaining_after_winners == 0 || insiders_count == 0 {
-            return Ok(());
-        }
-
-        // Validate insider shares
-        let mut sum_shares_bps: u128 = 0;
-        for ins in insiders.iter() {
-            sum_shares_bps = sum_shares_bps
-                .checked_add(ins.share_bps as u128)
-                .ok_or(CustomError::MathOverflow)?;
-        }
-        require!(sum_shares_bps <= 10_000u128, CustomError::InvalidInsiderShares);
-
-        // Transfer winnings to insiders
-        let mut allocated_insiders: u128 = 0;
-        for (j, ins) in insiders.iter().enumerate() {
-            let dest_idx = winners_count + j;
-            let dest_info = &ctx.remaining_accounts[dest_idx];
-
-            if dest_info.key != &ins.wallet {
-                return Err(error!(CustomError::Unauthorized));
-            }
-
-            // Compute share
-            let amount = (remaining_after_winners * (ins.share_bps as u128)) / 10_000u128;
-            if amount == 0 {
-                continue;
-            }
-
-            let ix = system_instruction::transfer(
-                ctx.accounts.treasury.to_account_info().key,
-                dest_info.key,
-                amount as u64,
-            );
-
-            anchor_lang::solana_program::program::invoke_signed(
-                &ix,
-                &[
-                    ctx.accounts.treasury.to_account_info(),
-                    dest_info.clone(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-                &[seeds],
-            )?;
-
-            allocated_insiders = allocated_insiders.checked_add(amount).ok_or(CustomError::MathOverflow)?;
-        }
-
-        // Emit distributed rewards event
-        emit!(DistributedRewardsEvent {
-            distributed_reward_pool: distributed as u64,
-            ts: Clock::get()?.unix_timestamp,
-        });
-
-        Ok(())
-    }
-
     /// Refund an entry fee from the treasury to a player
     /// Admin-only (config authority)
     pub fn refund_entry(
@@ -352,6 +223,63 @@ pub mod embedded {
         emit!(RefundEvent {
             match_id,
             player,
+            amount,
+            ts: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
+    }
+
+    /// Transfer airdrop funds from treasury to a recipient
+    /// Admin-only (config authority)
+    /// Minimal payload: just recipient and amount
+    pub fn airdrop_transfer(
+        ctx: Context<AirdropTransfer>,
+        recipient: Pubkey,
+        amount: u64,
+    ) -> Result<()> {
+        // Only the configured authority can execute airdrops
+        require_keys_eq!(
+            ctx.accounts.config.authority,
+            *ctx.accounts.authority.key,
+            CustomError::Unauthorized
+        );
+
+        // Recipient account must match the provided pubkey
+        require_keys_eq!(ctx.accounts.recipient.key(), recipient, CustomError::Unauthorized);
+
+        // Check sufficient funds
+        let treasury_info = ctx.accounts.treasury.to_account_info();
+        require!(treasury_info.lamports() >= amount, CustomError::InsufficientFunds);
+
+        // Recipient info
+        let dest_info = ctx.accounts.recipient.to_account_info();
+
+        // Move lamports by mutating lamports directly (safe because program owns treasury)
+        {
+            let mut from_lamports = treasury_info.try_borrow_mut_lamports()?;
+            let mut to_lamports = dest_info.try_borrow_mut_lamports()?;
+
+            // read current balances (copy values)
+            let from_balance: u64 = **from_lamports;
+            let to_balance: u64 = **to_lamports;
+
+            // compute new balances
+            let new_from = from_balance
+                .checked_sub(amount)
+                .ok_or(CustomError::InsufficientFunds)?;
+            let new_to = to_balance
+                .checked_add(amount)
+                .ok_or(CustomError::MathOverflow)?;
+
+            // write back using double-deref into the RefMut
+            **from_lamports = new_from;
+            **to_lamports = new_to;
+        }
+
+        // Emit event
+        emit!(AirdropTransferEvent {
+            recipient,
             amount,
             ts: Clock::get()?.unix_timestamp,
         });
@@ -456,6 +384,23 @@ pub struct RefundEntry<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct AirdropTransfer<'info> {
+    #[account(mut, seeds=[b"config"], bump = config.bump)]
+    pub config: Account<'info, Config>,
+
+    #[account(mut, seeds=[b"treasury"], bump = treasury.bump)]
+    pub treasury: Account<'info, Treasury>,
+
+    /// CHECK: destination of the airdrop; only used to receive lamports
+    #[account(mut)]
+    pub recipient: UncheckedAccount<'info>,
+
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 /// ---------- Data structs ----------
 
 #[account]
@@ -539,6 +484,13 @@ pub struct DistributedRewardsEvent {
 pub struct RefundEvent {
     pub match_id: String,
     pub player: Pubkey,
+    pub amount: u64,
+    pub ts: i64,
+}
+
+#[event]
+pub struct AirdropTransferEvent {
+    pub recipient: Pubkey,
     pub amount: u64,
     pub ts: i64,
 }
