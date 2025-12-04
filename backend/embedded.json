@@ -8,6 +8,88 @@
   },
   "instructions": [
     {
+      "name": "airdrop_transfer",
+      "docs": [
+        "Transfer airdrop funds from treasury to a recipient",
+        "Admin-only (config authority)",
+        "Minimal payload: just recipient and amount"
+      ],
+      "discriminator": [
+        110,
+        195,
+        105,
+        0,
+        147,
+        147,
+        68,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  101,
+                  97,
+                  115,
+                  117,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "distribute_rewards",
       "docs": [
         "Distribute rewards from treasury based on winners array (points-based).",
@@ -575,6 +657,19 @@
   ],
   "events": [
     {
+      "name": "AirdropTransferEvent",
+      "discriminator": [
+        252,
+        181,
+        24,
+        151,
+        105,
+        156,
+        113,
+        95
+      ]
+    },
+    {
       "name": "DepositEvent",
       "discriminator": [
         120,
@@ -660,6 +755,26 @@
     }
   ],
   "types": [
+    {
+      "name": "AirdropTransferEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
     {
       "name": "Config",
       "docs": [
