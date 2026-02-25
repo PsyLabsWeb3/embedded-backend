@@ -13,6 +13,75 @@ const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.
 const ANCHOR_PROGRAM_ID = new PublicKey(process.env.ANCHOR_PROGRAM_ID!);
 const [treasuryPda] = PublicKey.findProgramAddressSync([Buffer.from("treasury")], ANCHOR_PROGRAM_ID);
 
+let cachedOpenMatches: {
+  matchId: string;
+  game: string;
+  mode: string;
+  region: string;
+  betAmount: number;
+  matchFee: number;
+  createdAt: Date;
+}[] | null = null;
+
+let lastFetched = 0;
+
+// GET /openMatches
+router.get('/openMatches', async (req, res) => {
+  try {
+    const now = Date.now();
+
+    if (!cachedOpenMatches || now - lastFetched > 5000) {
+      cachedOpenMatches = await fetchOpenMatchesFromDB();
+
+      if (!cachedOpenMatches) {
+        res.status(500).json({ error: 'Failed to fetch open matches' });
+        return;
+      }
+
+      lastFetched = now;
+    }
+
+    res.json(cachedOpenMatches);
+  } catch (err) {
+    console.error('Unexpected error in /openMatches:', err);
+    res.status(500).json({ error: 'Failed to fetch open matches' });
+  }
+});
+
+async function fetchOpenMatchesFromDB() {
+  try {
+    const rawMatches = await prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        "matchId",
+        game,
+        mode,
+        region,
+        "betAmount",
+        "matchFee",
+        "createdAt"
+      FROM "Match"
+      WHERE status = 'WAITING'
+      ORDER BY game, mode, "betAmount" DESC, "createdAt" DESC
+      LIMIT 50
+    `);
+
+    const matches = rawMatches.map((row) => ({
+      matchId: row.matchId,
+      game: row.game,
+      mode: row.mode,
+      region: row.region,
+      betAmount: Number(row.betAmount),
+      matchFee: Number(row.matchFee),
+      createdAt: new Date(row.createdAt),
+    }));
+
+    return matches;
+  } catch (err) {
+    console.error('Error fetching open matches:', err);
+    return null;
+  }
+}
+
 // POST /registerPlayer
 router.post('/registerPlayer', verifySignature, async (req, res): Promise<any> => {
   console.log('/registerPlayer received body:', req.body);
